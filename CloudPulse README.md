@@ -613,7 +613,7 @@ flowchart TD
 ## Author
 
 **Shreyas Dhanvantari**  
-Master's Graduate in Electrical and Computer Engineering  
+Master's student in Electrical and Computer Engineering  
 Ontario Tech University
 
 If this project is being reviewed for internships, co-op, or entry-level software/cloud roles, it demonstrates practical experience in:
