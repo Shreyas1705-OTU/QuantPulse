@@ -48,9 +48,42 @@ spec:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
 
+            # Cloud block storage (e.g. Azure Disk) formats the volume with a
+            # filesystem that leaves a lost+found dir at its root, which trips
+            # up initdb's "directory must be empty" check if PGDATA points at
+            # the mount root directly. Pointing PGDATA at a subdirectory of
+            # the mount sidesteps that -- the subdirectory itself is empty.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - cloudpulse
+                - -d
+                - cloudpulse
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - cloudpulse
+                - -d
+                - cloudpulse
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
 
   volumeClaimTemplates:
 

@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base: every CloudPulse/QuantPulse resource, exactly as deploy-kind.sh applies
+# them today (local images, imagePullPolicy: Never). Kind keeps using
+# `kubectl apply -f` on these files directly and is unaffected by this file.
+# Cloud environments (see overlays/aks) build on top of this base instead of
+# duplicating it, so every change here (env vars, ports, resource limits...)
+# stays in one place.
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+
+  - postgres/secret_postgres.yaml
+  - postgres/service_postgres.yaml
+  - postgres/statefulset.yaml
+
+  - backend/deployment.yaml
+  - backend/service.yaml
+
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+
+  - monitoring/prometheus/configmap.yaml
+  - monitoring/prometheus/deployment.yaml
+  - monitoring/prometheus/service.yaml
+
+  - monitoring/grafana/dashboard-configmap.yaml
+  - monitoring/grafana/datasource-configmap.yaml
+  - monitoring/grafana/provider-configmap.yaml
+  - monitoring/grafana/deployment.yaml
+  - monitoring/grafana/service.yaml
+
+  - ingress/ingress.yaml

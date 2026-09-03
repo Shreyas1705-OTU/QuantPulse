@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# AKS overlay: builds on the shared base (../../) and patches only what
+# differs for a real cloud cluster — image source and pull policy. Everything
+# else (ports, env, probes, replicas) is inherited from the base untouched.
+
+resources:
+  - ../../k8s
+
+# Rewrites `image: cloudpulse-backend:latest` / `cloudpulse-frontend:latest`
+# to the ACR-hosted images built via `docker buildx` + pushed for linux/arm64
+# (see quantpulseacrsd.azurecr.io). Matches by image *name*, so the base
+# files never need to know about ACR.
+images:
+  - name: cloudpulse-backend
+    newName: quantpulseacrsd.azurecr.io/cloudpulse-backend
+    newTag: latest
+  - name: cloudpulse-frontend
+    newName: quantpulseacrsd.azurecr.io/cloudpulse-frontend
+    newTag: latest
+
+# Never on Kind means "only use what's already loaded into the node" — the
+# right default for a from-source local dev loop. On AKS there's no local
+# image to reuse, and IfNotPresent avoids a wasted pull if the node already
+# cached that exact tag from a previous deploy.
+patches:
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
