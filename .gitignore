@@ -31,3 +31,8 @@ frontend/dist/
 # ----------------------------
 .DS_Store
 Thumbs.db
+
+# ----------------------------
+# Personal session logs (Review Documents) -- reference only, never committed
+# ----------------------------
+docs/logs/
