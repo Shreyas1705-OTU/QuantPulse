@@ -77,5 +77,5 @@ def root():
         "environment": settings.ENVIRONMENT,
         "debug": settings.DEBUG,
         "status": "running",
-        "message": "Welcome to CloudPulse!",
+        "message": "Welcome to QuantPulse!",
     }

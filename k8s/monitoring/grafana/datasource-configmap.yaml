@@ -3,7 +3,7 @@ kind: ConfigMap
 
 metadata:
   name: grafana-datasource
-  namespace: cloudpulse
+  namespace: quantpulse
 
 data:
   prometheus.yaml: |

@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: CloudPulse
+  - name: QuantPulse
     orgId: 1
     folder: ""
     type: file

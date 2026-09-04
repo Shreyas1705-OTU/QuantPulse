@@ -3,7 +3,7 @@ kind: Service
 
 metadata:
   name: grafana
-  namespace: cloudpulse
+  namespace: quantpulse
 
 spec:
   selector:

@@ -94,13 +94,13 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "up{job=\"cloudpulse-backend\"}",
+          "expr": "up{job=\"quantpulse-backend\"}",
           "legendFormat": "{{job}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "CloudPulse Backend Status",
+      "title": "QuantPulse Backend Status",
       "type": "stat"
     },
     {
@@ -511,7 +511,7 @@
   "preload": false,
   "schemaVersion": 42,
   "tags": [
-    "cloudpulse"
+    "quantpulse"
   ],
   "templating": {
     "list": []
@@ -522,7 +522,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "CloudPulse Monitoring Dashboard",
-  "uid": "cloudpulse-dashboard",
+  "title": "QuantPulse Monitoring Dashboard",
+  "uid": "quantpulse-dashboard",
   "version": 1
 }

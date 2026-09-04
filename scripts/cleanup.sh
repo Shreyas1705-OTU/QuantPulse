@@ -3,13 +3,13 @@
 set -e
 
 echo "========================================"
-echo " Cleaning CloudPulse"
+echo " Cleaning QuantPulse"
 echo "========================================"
 
 echo ""
 echo "Deleting Kind cluster..."
 
-kind delete cluster --name cloudpulse
+kind delete cluster --name quantpulse
 
 echo ""
-echo "CloudPulse cluster deleted successfully."
+echo "QuantPulse cluster deleted successfully."

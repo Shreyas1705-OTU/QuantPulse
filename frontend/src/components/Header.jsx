@@ -9,7 +9,7 @@ export default function Header() {
 
                     <div>
                         <h1 className="text-3xl font-bold text-white">
-                            CloudPulse
+                            QuantPulse
                         </h1>
 
                         <p className="text-slate-400 text-sm">

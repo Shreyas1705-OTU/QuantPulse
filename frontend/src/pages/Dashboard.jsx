@@ -23,7 +23,7 @@ import {
     getDevices,
     getReadings,
     getAlerts,
-} from "../services/cloudpulseService";
+} from "../services/quantpulseService";
 
 export default function Dashboard() {
 

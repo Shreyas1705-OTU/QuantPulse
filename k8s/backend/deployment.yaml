@@ -3,7 +3,7 @@ kind: Deployment
 
 metadata:
   name: backend
-  namespace: cloudpulse
+  namespace: quantpulse
 
 spec:
   replicas: 1
@@ -21,7 +21,7 @@ spec:
       containers:
         - name: backend
 
-          image: cloudpulse-backend:latest
+          image: quantpulse-backend:latest
           imagePullPolicy: Never
 
           ports:
@@ -32,34 +32,34 @@ spec:
             - name: APP_NAME
               valueFrom:
                 configMapKeyRef:
-                  name: cloudpulse-config
+                  name: quantpulse-config
                   key: APP_NAME
 
             - name: APP_VERSION
               valueFrom:
                 configMapKeyRef:
-                  name: cloudpulse-config
+                  name: quantpulse-config
                   key: APP_VERSION
 
             - name: ENVIRONMENT
               valueFrom:
                 configMapKeyRef:
-                  name: cloudpulse-config
+                  name: quantpulse-config
                   key: ENVIRONMENT
 
             - name: DEBUG
               valueFrom:
                 configMapKeyRef:
-                  name: cloudpulse-config
+                  name: quantpulse-config
                   key: DEBUG
 
             - name: DATABASE_URL
-              value: "postgresql://cloudpulse:cloudpulse123@postgres:5432/cloudpulse"
+              value: "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse"
 
             - name: JWT_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: cloudpulse-secret
+                  name: quantpulse-secret
                   key: JWT_SECRET_KEY
 
           readinessProbe:

@@ -3,21 +3,21 @@
 set -e
 
 echo "========================================"
-echo " CloudPulse Kubernetes Deployment"
+echo " QuantPulse Kubernetes Deployment"
 echo "========================================"
 
 echo ""
 echo "[1/8] Building backend image..."
-docker build -t cloudpulse-backend:latest ./backend
+docker build -t quantpulse-backend:latest ./backend
 
 echo ""
 echo "[2/8] Building frontend image..."
-docker build -t cloudpulse-frontend:latest ./frontend
+docker build -t quantpulse-frontend:latest ./frontend
 
 echo ""
 echo "[3/8] Loading images into Kind..."
-kind load docker-image cloudpulse-backend:latest --name cloudpulse
-kind load docker-image cloudpulse-frontend:latest --name cloudpulse
+kind load docker-image quantpulse-backend:latest --name quantpulse
+kind load docker-image quantpulse-frontend:latest --name quantpulse
 
 echo ""
 echo "[4/8] Creating namespace and configuration..."
@@ -46,10 +46,10 @@ kubectl apply -f k8s/ingress/
 echo ""
 echo "Waiting for deployments..."
 
-kubectl rollout status deployment/backend -n cloudpulse
-kubectl rollout status deployment/frontend -n cloudpulse
-kubectl rollout status deployment/prometheus -n cloudpulse
-kubectl rollout status deployment/grafana -n cloudpulse
+kubectl rollout status deployment/backend -n quantpulse
+kubectl rollout status deployment/frontend -n quantpulse
+kubectl rollout status deployment/prometheus -n quantpulse
+kubectl rollout status deployment/grafana -n quantpulse
 
 echo ""
 echo "Waiting for PostgreSQL..."
@@ -57,20 +57,20 @@ echo "Waiting for PostgreSQL..."
 kubectl wait \
   --for=condition=Ready \
   pod/postgres-0 \
-  -n cloudpulse \
+  -n quantpulse \
   --timeout=180s
 
 echo ""
 echo "Running Alembic migrations..."
-kubectl exec deployment/backend -n cloudpulse -- alembic upgrade head
+kubectl exec deployment/backend -n quantpulse -- alembic upgrade head
 
 echo ""
 echo "Seeding database..."
-kubectl exec deployment/backend -n cloudpulse -- python -m app.database.seed
+kubectl exec deployment/backend -n quantpulse -- python -m app.database.seed
 
 echo ""
 echo "========================================"
-echo " CloudPulse deployed successfully!"
+echo " QuantPulse deployed successfully!"
 echo "========================================"
 
 echo ""
@@ -81,7 +81,7 @@ echo "Prometheus : http://localhost:9090"
 echo "Grafana    : http://localhost:3000"
 
 echo ""
-echo "CloudPulse Login"
+echo "QuantPulse Login"
 echo "----------------"
 echo "Username : shreyas"
 echo "Password : Password123"
@@ -100,7 +100,7 @@ echo "./scripts/port-forward.sh"
 echo ""
 echo "Current Pod Status"
 echo "------------------"
-kubectl get pods -n cloudpulse
+kubectl get pods -n quantpulse
 
 echo ""
-echo "CloudPulse deployment completed successfully!"
+echo "QuantPulse deployment completed successfully!"

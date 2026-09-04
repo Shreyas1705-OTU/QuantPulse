@@ -3,12 +3,12 @@
 set -e
 
 echo "========================================"
-echo " CloudPulse Kind Cluster Setup"
+echo " QuantPulse Kind Cluster Setup"
 echo "========================================"
 
 echo ""
 echo "[1/3] Creating Kind cluster..."
-kind create cluster --config kind-config.yaml --name cloudpulse
+kind create cluster --config kind-config.yaml --name quantpulse
 
 echo ""
 echo "[2/3] Installing NGINX Ingress..."

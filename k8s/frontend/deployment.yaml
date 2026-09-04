@@ -3,7 +3,7 @@ kind: Deployment
 
 metadata:
   name: frontend
-  namespace: cloudpulse
+  namespace: quantpulse
 
 spec:
   replicas: 1
@@ -21,7 +21,7 @@ spec:
       containers:
         - name: frontend
 
-          image: cloudpulse-frontend:latest
+          image: quantpulse-frontend:latest
           imagePullPolicy: Never
 
           ports:

@@ -8,7 +8,7 @@ API_URL = "http://localhost:8000/api/v1/readings"
 DEVICE_ID = 1
 
 print("========================================")
-print("CloudPulse Sensor Simulator Started")
+print("QuantPulse Sensor Simulator Started")
 print("Sending data every 5 seconds...")
 print("Press CTRL+C to stop")
 print("========================================")

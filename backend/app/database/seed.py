@@ -52,7 +52,7 @@ if user is None:
 
     service.create_user(
         username="shreyas",
-        email="shreyas@cloudpulse.com",
+        email="shreyas@quantpulse.com",
         hashed_password=hash_password("Password123"),
         role="admin",
     )

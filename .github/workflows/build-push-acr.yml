@@ -27,9 +27,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: cloudpulse-backend
+          - image: quantpulse-backend
             context: ./backend
-          - image: cloudpulse-frontend
+          - image: quantpulse-frontend
             context: ./frontend
 
     steps:

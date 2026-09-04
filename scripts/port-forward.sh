@@ -1,16 +1,16 @@
 #!/bin/bash
 
 echo "========================================"
-echo " CloudPulse Port Forwarding"
+echo " QuantPulse Port Forwarding"
 echo "========================================"
 
 echo ""
 echo "Starting Prometheus on :9090..."
-kubectl port-forward svc/prometheus 9090:9090 -n cloudpulse &
+kubectl port-forward svc/prometheus 9090:9090 -n quantpulse &
 PROM_PID=$!
 
 echo "Starting Grafana on :3000..."
-kubectl port-forward svc/grafana 3000:3000 -n cloudpulse &
+kubectl port-forward svc/grafana 3000:3000 -n quantpulse &
 GRAF_PID=$!
 
 echo ""

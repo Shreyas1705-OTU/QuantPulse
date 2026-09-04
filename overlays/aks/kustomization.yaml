@@ -8,16 +8,16 @@ kind: Kustomization
 resources:
   - ../../k8s
 
-# Rewrites `image: cloudpulse-backend:latest` / `cloudpulse-frontend:latest`
+# Rewrites `image: quantpulse-backend:latest` / `quantpulse-frontend:latest`
 # to the ACR-hosted images built via `docker buildx` + pushed for linux/arm64
 # (see quantpulseacrsd.azurecr.io). Matches by image *name*, so the base
 # files never need to know about ACR.
 images:
-  - name: cloudpulse-backend
-    newName: quantpulseacrsd.azurecr.io/cloudpulse-backend
+  - name: quantpulse-backend
+    newName: quantpulseacrsd.azurecr.io/quantpulse-backend
     newTag: latest
-  - name: cloudpulse-frontend
-    newName: quantpulseacrsd.azurecr.io/cloudpulse-frontend
+  - name: quantpulse-frontend
+    newName: quantpulseacrsd.azurecr.io/quantpulse-frontend
     newTag: latest
 
 # Never on Kind means "only use what's already loaded into the node" — the

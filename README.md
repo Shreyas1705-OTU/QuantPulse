@@ -1,6 +1,6 @@
-# CloudPulse
+# QuantPulse
 
-**CloudPulse** is a cloud-native IoT monitoring platform that simulates connected devices, stores telemetry data, exposes operational metrics, and visualizes system health through **Prometheus** and **Grafana**.
+**QuantPulse** is a cloud-native IoT monitoring platform that simulates connected devices, stores telemetry data, exposes operational metrics, and visualizes system health through **Prometheus** and **Grafana**.
 
 It is designed as a portfolio-ready full-stack project that demonstrates:
 
@@ -37,7 +37,7 @@ It is designed as a portfolio-ready full-stack project that demonstrates:
 
 ## Project Overview
 
-CloudPulse simulates an IoT monitoring workflow where devices continuously generate data such as temperature, humidity, and battery level. The application provides:
+QuantPulse simulates an IoT monitoring workflow where devices continuously generate data such as temperature, humidity, and battery level. The application provides:
 
 - A **web dashboard** for viewing devices, readings, alerts, and analytics
 - A **FastAPI backend** for device and telemetry management
@@ -74,7 +74,7 @@ This project was refined through multiple **cold-start deployments**, with each 
 
 ## Architecture
 
-CloudPulse runs as a multi-service application inside a **Kind Kubernetes cluster** on a local development machine.
+QuantPulse runs as a multi-service application inside a **Kind Kubernetes cluster** on a local development machine.
 
 ### High-Level Architecture Diagram
 
@@ -82,7 +82,7 @@ CloudPulse runs as a multi-service application inside a **Kind Kubernetes cluste
 
 
 **Architecture summary:**
-- The **user browser** accesses CloudPulse through **NGINX Ingress** at `http://localhost`
+- The **user browser** accesses QuantPulse through **NGINX Ingress** at `http://localhost`
 - The **frontend service** serves the React application through an NGINX container
 - The **backend service** exposes a FastAPI REST API and a `/metrics` endpoint
 - **PostgreSQL** stores devices, readings, users, and alerts
@@ -95,12 +95,12 @@ CloudPulse runs as a multi-service application inside a **Kind Kubernetes cluste
 
 ### Login Page
 
-<img width="1920" height="1080" alt="CloudPulse_Login" src="https://github.com/user-attachments/assets/fefd3688-8bee-4f20-aec2-17ab79ec304c" />
+<img width="1920" height="1080" alt="QuantPulse_Login" src="https://github.com/user-attachments/assets/fefd3688-8bee-4f20-aec2-17ab79ec304c" />
 
 
 ### Main Application Dashboard
 
-<img width="1920" height="1020" alt="CloudPulse_Dashboard" src="https://github.com/user-attachments/assets/9b78f704-88e7-4edb-b26a-6b3fbac1f8c1" />
+<img width="1920" height="1020" alt="QuantPulse_Dashboard" src="https://github.com/user-attachments/assets/9b78f704-88e7-4edb-b26a-6b3fbac1f8c1" />
 
 
 ### Prometheus Query Validation
@@ -224,7 +224,7 @@ Optional but helpful:
 
 ### Recommended Deployment Flow
 
-CloudPulse now supports a structured deployment flow using scripts.
+QuantPulse now supports a structured deployment flow using scripts.
 
 1. **Clean up any existing cluster**
 2. **Create a Kind cluster and install ingress**
@@ -243,7 +243,7 @@ CloudPulse now supports a structured deployment flow using scripts.
 ./scripts/setup-kind.sh
 ```
 
-### Step 3 — Deploy CloudPulse
+### Step 3 — Deploy QuantPulse
 
 ```bash
 ./scripts/deploy-kind.sh
@@ -258,8 +258,8 @@ CloudPulse now supports a structured deployment flow using scripts.
 > If you do not use `port-forward.sh`, Prometheus and Grafana can also be run with separate terminal sessions:
 >
 > ```bash
-> kubectl port-forward svc/prometheus 9090:9090 -n cloudpulse
-> kubectl port-forward svc/grafana 3000:3000 -n cloudpulse
+> kubectl port-forward svc/prometheus 9090:9090 -n quantpulse
+> kubectl port-forward svc/grafana 3000:3000 -n quantpulse
 > ```
 
 ---
@@ -300,13 +300,13 @@ Starts port forwarding for:
 
 ### Application URLs
 
-- **CloudPulse Frontend:** `http://localhost`
+- **QuantPulse Frontend:** `http://localhost`
 - **Prometheus:** `http://localhost:9090`
 - **Grafana:** `http://localhost:3000`
 
 ### Default Local Demo Credentials
 
-#### CloudPulse Login
+#### QuantPulse Login
 - **Username:** `shreyas`
 - **Password:** `Password123`
 
@@ -320,7 +320,7 @@ Starts port forwarding for:
 
 ## Monitoring and Observability
 
-CloudPulse includes an observability stack that helps validate backend health and runtime behavior.
+QuantPulse includes an observability stack that helps validate backend health and runtime behavior.
 
 ### Prometheus
 Prometheus scrapes the backend `/metrics` endpoint and validates service health.
@@ -328,13 +328,13 @@ Prometheus scrapes the backend `/metrics` endpoint and validates service health.
 Example query used during validation:
 
 ```promql
-up{instance="backend:8000", job="cloudpulse-backend"}
+up{instance="backend:8000", job="quantpulse-backend"}
 ```
 
 ### Grafana
 Grafana is provisioned with:
 - A **Prometheus datasource**
-- A **pre-configured CloudPulse monitoring dashboard**
+- A **pre-configured QuantPulse monitoring dashboard**
 
 The Grafana dashboard displays:
 - Backend status
@@ -397,7 +397,7 @@ The final deployment flow was successfully cold-started end-to-end, including:
 
 ## Why This Project Is Cloud-Native
 
-Yes — CloudPulse follows several cloud-native principles.
+Yes — QuantPulse follows several cloud-native principles.
 
 ### Cloud-native characteristics in this project
 - **Containerized services** using Docker
@@ -427,8 +427,8 @@ Fix:
 - Re-run migrations and seeding if necessary
 
 ```bash
-kubectl exec -it deployment/backend -n cloudpulse -- alembic upgrade head
-kubectl exec -it deployment/backend -n cloudpulse -- python -m app.database.seed
+kubectl exec -it deployment/backend -n quantpulse -- alembic upgrade head
+kubectl exec -it deployment/backend -n quantpulse -- python -m app.database.seed
 ```
 
 ### 2. Grafana opens but dashboard has no data
@@ -456,7 +456,7 @@ up
 Expected result should include:
 
 ```text
-up{instance="backend:8000", job="cloudpulse-backend"} 1
+up{instance="backend:8000", job="quantpulse-backend"} 1
 ```
 
 ### 4. Ingress creation fails during setup
@@ -512,7 +512,7 @@ flowchart TB
         Docker --> Kind
     end
 
-    subgraph CloudPulse[Kubernetes Namespace: cloudpulse]
+    subgraph QuantPulse[Kubernetes Namespace: quantpulse]
         Ingress[NGINX Ingress]
         FrontendService[Frontend Service]
         Frontend[React Frontend / NGINX Container]
@@ -540,7 +540,7 @@ flowchart TB
 
     User -->|http://localhost| Ingress
     User -->|localhost:3000| GrafanaService
-    LocalHost --> CloudPulse
+    LocalHost --> QuantPulse
 ```
 
 ### 2. Deployment Workflow Diagram
@@ -563,7 +563,7 @@ flowchart TD
     N --> O[port-forward.sh]
     O --> P[Prometheus :9090]
     O --> Q[Grafana :3000]
-    N --> R[CloudPulse :80]
+    N --> R[QuantPulse :80]
 ```
 
 ### 3. Database Initialization Diagram
@@ -577,7 +577,7 @@ flowchart TD
     E --> F[Create Default User]
     E --> G[Create Sample Devices]
     E --> H[Create Readings and Alerts]
-    F --> I[CloudPulse Login Ready]
+    F --> I[QuantPulse Login Ready]
     G --> I
     H --> I
 ```
@@ -633,8 +633,8 @@ To make the images work correctly on GitHub, place them in the following folders
 ### Screenshots
 ```text
 docs/screenshots/
-├── cloudpulse-login.png
-├── cloudpulse-dashboard.png
+├── quantpulse-login.png
+├── quantpulse-dashboard.png
 ├── prometheus-up-query.png
 ├── grafana-dashboard.png
 └── deployment-success.png

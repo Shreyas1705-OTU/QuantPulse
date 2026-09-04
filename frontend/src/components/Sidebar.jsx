@@ -60,7 +60,7 @@ export default function Sidebar() {
                     <div>
 
                         <h1 className="text-2xl font-bold text-white">
-                            CloudPulse
+                            QuantPulse
                         </h1>
 
                         <p className="text-xs text-slate-400">

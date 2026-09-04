@@ -2,18 +2,18 @@ services:
 
   postgres:
     image: postgres:16
-    container_name: cloudpulse-postgres
+    container_name: quantpulse-postgres
 
     environment:
-      POSTGRES_USER: cloudpulse
-      POSTGRES_PASSWORD: cloudpulse123
-      POSTGRES_DB: cloudpulse
+      POSTGRES_USER: quantpulse
+      POSTGRES_PASSWORD: quantpulse123
+      POSTGRES_DB: quantpulse
 
     ports:
       - "5432:5432"
 
     volumes:
-      - cloudpulse-postgres-data:/var/lib/postgresql/data
+      - quantpulse-postgres-data:/var/lib/postgresql/data
 
     restart: unless-stopped
 
@@ -22,10 +22,10 @@ services:
     build:
       context: ./backend
 
-    container_name: cloudpulse-backend
+    container_name: quantpulse-backend
 
     environment:
-      DATABASE_URL: postgresql://cloudpulse:cloudpulse123@postgres:5432/cloudpulse
+      DATABASE_URL: postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse
 
     ports:
       - "8000:8000"
@@ -40,7 +40,7 @@ services:
     build:
       context: ./frontend
 
-    container_name: cloudpulse-frontend
+    container_name: quantpulse-frontend
 
     ports:
       - "5173:80"
@@ -54,7 +54,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
 
-    container_name: cloudpulse-prometheus
+    container_name: quantpulse-prometheus
 
     ports:
       - "9090:9090"
@@ -71,7 +71,7 @@ services:
   grafana:
     image: grafana/grafana-oss:latest
 
-    container_name: cloudpulse-grafana
+    container_name: quantpulse-grafana
 
     ports:
       - "3000:3000"
@@ -86,5 +86,5 @@ services:
 
 
 volumes:
-  cloudpulse-postgres-data:
+  quantpulse-postgres-data:
   grafana-storage:
