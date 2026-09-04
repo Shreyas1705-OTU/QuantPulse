@@ -16,6 +16,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - ".github/workflows/build-push-acr.yml"
+  workflow_dispatch: {}
 
 env:
   ACR_LOGIN_SERVER: quantpulseacrsd.azurecr.io
