@@ -4,13 +4,13 @@ from prometheus_client import make_asgi_app
 
 from app.core.config import settings
 from app.routers.auth import router as auth_router
-from app.routers.devices import router as device_router
-from app.routers.readings import router as reading_router
+from app.routers.symbols import router as symbol_router
+from app.routers.ticks import router as tick_router
 from app.routers.alerts import router as alert_router
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Cloud-native IoT Device Monitoring Platform",
+    description="Real-time, AI-assisted market monitoring platform",
     version=settings.APP_VERSION,
 )
 
@@ -34,10 +34,10 @@ metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
 # -----------------------------
-# Device APIs
+# Symbol APIs
 # -----------------------------
 app.include_router(
-    device_router,
+    symbol_router,
     prefix="/api/v1",
 )
 
@@ -51,10 +51,10 @@ app.include_router(
 )
 
 # -----------------------------
-# Sensor Reading APIs
+# Tick APIs
 # -----------------------------
 app.include_router(
-    reading_router,
+    tick_router,
     prefix="/api/v1",
 )
 

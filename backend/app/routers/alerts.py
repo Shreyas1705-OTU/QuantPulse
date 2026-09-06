@@ -23,3 +23,19 @@ def get_all_alerts(
     service = AlertService(db)
 
     return service.get_all_alerts()
+
+
+@router.get(
+    "/symbol/{symbol_id}",
+    response_model=list[AlertResponse],
+)
+def get_symbol_alerts(
+    symbol_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = AlertService(db)
+
+    return service.get_alerts_for_symbol(
+        symbol_id
+    )

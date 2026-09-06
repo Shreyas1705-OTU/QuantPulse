@@ -194,8 +194,8 @@ The screenshot below shows the `up` query successfully returning the backend tar
 │   ├── setup-kind.sh
 │   ├── deploy-kind.sh
 │   └── port-forward.sh
-├── simulator/
-│   └── sensor_simulator.py
+├── ingestion/                    # Finnhub WebSocket ingestion service
+│   └── finnhub_peek.py
 ├── docs/
 │   ├── screenshots/
 │   └── diagrams/

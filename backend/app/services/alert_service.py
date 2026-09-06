@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.core.metrics import ALERTS_TOTAL
 from app.database.models import Alert
 
 
@@ -10,12 +11,12 @@ class AlertService:
 
     def create_alert(
         self,
-        device_id: int,
+        symbol_id: int,
         message: str,
         severity: str,
     ):
         alert = Alert(
-            device_id=device_id,
+            symbol_id=symbol_id,
             message=message,
             severity=severity,
         )
@@ -23,6 +24,8 @@ class AlertService:
         self.db.add(alert)
         self.db.commit()
         self.db.refresh(alert)
+
+        ALERTS_TOTAL.inc()
 
         return alert
 
@@ -33,13 +36,13 @@ class AlertService:
             .all()
         )
 
-    def get_alerts_for_device(
+    def get_alerts_for_symbol(
         self,
-        device_id: int,
+        symbol_id: int,
     ):
         return (
             self.db.query(Alert)
-            .filter(Alert.device_id == device_id)
+            .filter(Alert.symbol_id == symbol_id)
             .order_by(Alert.created_at.desc())
             .all()
         )

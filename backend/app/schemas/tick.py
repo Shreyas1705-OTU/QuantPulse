@@ -3,17 +3,19 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class AlertCreate(BaseModel):
+class TickCreate(BaseModel):
     symbol_id: int
-    message: str
-    severity: str
+    price: float
+    volume: float
+    traded_at: datetime
 
 
-class AlertResponse(BaseModel):
+class TickResponse(BaseModel):
     id: int
     symbol_id: int
-    message: str
-    severity: str
+    price: float
+    volume: float
+    traded_at: datetime
     created_at: datetime
 
     class Config:

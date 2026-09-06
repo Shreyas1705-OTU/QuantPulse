@@ -3,6 +3,7 @@ from sqlalchemy import (
     Integer,
     String,
     Float,
+    Boolean,
     ForeignKey,
     DateTime,
 )
@@ -11,13 +12,19 @@ from sqlalchemy.sql import func
 from app.database.base import Base
 
 
-class Device(Base):
-    __tablename__ = "devices"
+class Symbol(Base):
+    __tablename__ = "symbols"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    status = Column(String(50), nullable=False)
-    location = Column(String(100), nullable=False)
+
+    ticker = Column(String(50), unique=True, nullable=False, index=True)
+    display_name = Column(String(100), nullable=False)
+
+    # "equity" | "forex" | "crypto" -- drives market-hours logic later
+    # (equities: NYSE hours only, forex: ~24/5, crypto: 24/7)
+    asset_type = Column(String(20), nullable=False)
+
+    is_active = Column(Boolean, default=True, nullable=False)
 
 
 class User(Base):
@@ -51,8 +58,8 @@ class User(Base):
     )
 
 
-class Reading(Base):
-    __tablename__ = "readings"
+class Tick(Base):
+    __tablename__ = "ticks"
 
     id = Column(
         Integer,
@@ -60,25 +67,29 @@ class Reading(Base):
         index=True
     )
 
-    device_id = Column(
+    symbol_id = Column(
         Integer,
-        ForeignKey("devices.id"),
-        nullable=False
+        ForeignKey("symbols.id"),
+        nullable=False,
+        index=True
     )
 
-    temperature = Column(
+    price = Column(
         Float,
         nullable=False
     )
 
-    humidity = Column(
+    volume = Column(
         Float,
         nullable=False
     )
 
-    battery = Column(
-        Integer,
-        nullable=False
+    # When the trade actually executed (Finnhub's `t`), distinct from
+    # created_at -- our own ingestion time can lag this slightly.
+    traded_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True
     )
 
     created_at = Column(
@@ -86,7 +97,8 @@ class Reading(Base):
         server_default=func.now(),
         nullable=False
     )
-    
+
+
 class Alert(Base):
     __tablename__ = "alerts"
 
@@ -96,9 +108,9 @@ class Alert(Base):
         index=True
     )
 
-    device_id = Column(
+    symbol_id = Column(
         Integer,
-        ForeignKey("devices.id"),
+        ForeignKey("symbols.id"),
         nullable=False
     )
 

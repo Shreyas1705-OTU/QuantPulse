@@ -1,43 +1,36 @@
-import random
-
 from app.database.connection import SessionLocal
-from app.database.models import Device, User, Reading, Alert
+from app.database.models import Symbol
 from app.services.user_service import UserService
 from app.core.security import hash_password
 
 db = SessionLocal()
 
 # ---------------------------------------------------
-# Seed Devices
+# Seed Symbols
 # ---------------------------------------------------
 
-if db.query(Device).count() == 0:
+if db.query(Symbol).count() == 0:
 
-    devices = [
-        Device(
-            name="Temperature Sensor",
-            status="Online",
-            location="Warehouse A",
-        ),
-        Device(
-            name="Pressure Sensor",
-            status="Offline",
-            location="Warehouse B",
-        ),
-        Device(
-            name="Gateway Device",
-            status="Online",
-            location="Main Office",
-        ),
+    symbols = [
+        Symbol(ticker="AAPL", display_name="Apple Inc.", asset_type="equity"),
+        Symbol(ticker="TSLA", display_name="Tesla, Inc.", asset_type="equity"),
+        Symbol(ticker="SPY", display_name="SPDR S&P 500 ETF Trust", asset_type="equity"),
+        Symbol(ticker="NVDA", display_name="NVIDIA Corporation", asset_type="equity"),
+        Symbol(ticker="MSFT", display_name="Microsoft Corporation", asset_type="equity"),
+        Symbol(ticker="GOOGL", display_name="Alphabet Inc.", asset_type="equity"),
+        Symbol(ticker="AMZN", display_name="Amazon.com, Inc.", asset_type="equity"),
+        Symbol(ticker="META", display_name="Meta Platforms, Inc.", asset_type="equity"),
+        Symbol(ticker="OANDA:EUR_USD", display_name="Euro / US Dollar", asset_type="forex"),
+        Symbol(ticker="BINANCE:BTCUSDT", display_name="Bitcoin / Tether", asset_type="crypto"),
     ]
 
-    db.add_all(devices)
+    db.add_all(symbols)
     db.commit()
 
-    print("Devices seeded.")
+    print("Symbols seeded.")
 
 else:
-    print("Devices already exist.")
+    print("Symbols already exist.")
 
 
 # ---------------------------------------------------
@@ -64,72 +57,10 @@ else:
 
 
 # ---------------------------------------------------
-# Seed Readings
+# Ticks and alerts are populated by the real Finnhub
+# ingestion service and Phase 3 anomaly detection --
+# no fake data seeded here anymore.
 # ---------------------------------------------------
-
-if db.query(Reading).count() == 0:
-
-    readings = []
-
-    for device_id in [1, 2, 3]:
-
-        for _ in range(10):
-
-            readings.append(
-                Reading(
-                    device_id=device_id,
-                    temperature=round(random.uniform(20.0, 35.0), 1),
-                    humidity=round(random.uniform(35.0, 70.0), 1),
-                    battery=random.randint(60, 100),
-                )
-            )
-
-    db.add_all(readings)
-    db.commit()
-
-    print("Sample readings created.")
-
-else:
-
-    print("Readings already exist.")
-
-
-# ---------------------------------------------------
-# Seed Alerts
-# ---------------------------------------------------
-
-if db.query(Alert).count() == 0:
-
-    alerts = [
-
-        Alert(
-            device_id=1,
-            message="Temperature exceeded threshold",
-            severity="High",
-        ),
-
-        Alert(
-            device_id=2,
-            message="Pressure sensor offline",
-            severity="Critical",
-        ),
-
-        Alert(
-            device_id=3,
-            message="Gateway battery below 70%",
-            severity="Medium",
-        ),
-    ]
-
-    db.add_all(alerts)
-    db.commit()
-
-    print("Sample alerts created.")
-
-else:
-
-    print("Alerts already exist.")
-
 
 db.close()
 

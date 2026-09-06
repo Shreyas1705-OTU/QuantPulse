@@ -1,29 +1,13 @@
-from prometheus_client import Counter, Gauge
+from prometheus_client import Counter
 
-# Total number of readings received
-READINGS_TOTAL = Counter(
-    "quantpulse_readings_total",
-    "Total sensor readings received",
+# Total number of ticks ingested
+TICKS_TOTAL = Counter(
+    "quantpulse_ticks_total",
+    "Total market ticks ingested",
 )
 
 # Total alerts generated
 ALERTS_TOTAL = Counter(
     "quantpulse_alerts_total",
     "Total alerts generated",
-)
-
-# Latest sensor values
-TEMPERATURE_GAUGE = Gauge(
-    "quantpulse_temperature_celsius",
-    "Latest temperature reading",
-)
-
-HUMIDITY_GAUGE = Gauge(
-    "quantpulse_humidity_percent",
-    "Latest humidity reading",
-)
-
-BATTERY_GAUGE = Gauge(
-    "quantpulse_battery_percent",
-    "Latest battery percentage",
 )
