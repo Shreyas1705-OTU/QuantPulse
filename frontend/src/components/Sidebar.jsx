@@ -24,11 +24,11 @@ export default function Sidebar() {
         },
         {
             icon: <Cpu size={18} />,
-            label: "Devices",
+            label: "Symbols",
         },
         {
             icon: <Database size={18} />,
-            label: "Readings",
+            label: "Ticks",
         },
         {
             icon: <Bell size={18} />,
@@ -64,7 +64,7 @@ export default function Sidebar() {
                         </h1>
 
                         <p className="text-xs text-slate-400">
-                            IoT Monitoring Platform
+                            Market Monitoring Platform
                         </p>
 
                     </div>

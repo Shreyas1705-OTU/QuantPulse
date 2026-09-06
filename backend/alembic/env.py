@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.database.base import Base
-from app.database.models import Device
+from app.database.models import Symbol, User, Tick, Alert  # noqa: F401
 
 config = context.config
 

@@ -1,12 +1,12 @@
 import api from "./api";
 
-export async function getDevices() {
-    const response = await api.get("/devices/");
+export async function getSymbols() {
+    const response = await api.get("/symbols/");
     return response.data;
 }
 
-export async function getReadings() {
-    const response = await api.get("/readings");
+export async function getTicks() {
+    const response = await api.get("/ticks");
     return response.data;
 }
 

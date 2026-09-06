@@ -45,6 +45,12 @@ echo "[5/7] Applying Kubernetes manifests (namespace, config, postgres,"
 echo "backend, frontend, monitoring, ingress) via the aks overlay..."
 kubectl apply -k overlays/aks
 
+# Same reasoning as deploy-kind.sh: the image tag here is always ":latest",
+# so a freshly-pushed image with new code looks "unchanged" to kubectl and
+# won't trigger a pod restart on its own. Force one every run.
+kubectl rollout restart deployment/backend -n quantpulse
+kubectl rollout restart deployment/frontend -n quantpulse
+
 echo ""
 echo "Waiting for deployments..."
 

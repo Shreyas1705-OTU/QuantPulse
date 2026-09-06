@@ -13,7 +13,7 @@ export default function Header() {
                         </h1>
 
                         <p className="text-slate-400 text-sm">
-                            Cloud Native IoT Monitoring Platform
+                            Real-Time Market Monitoring Platform
                         </p>
                     </div>
                 </div>

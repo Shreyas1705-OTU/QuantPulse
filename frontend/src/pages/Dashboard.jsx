@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 
 import {
-    Thermometer,
-    Droplets,
-    Battery,
+    TrendingUp,
     Bell,
-    Cpu,
     Database,
 } from "lucide-react";
 
@@ -14,21 +11,18 @@ import Header from "../components/Header";
 import MetricCard from "../components/MetricCard";
 import SectionCard from "../components/SectionCard";
 
-import DeviceStatus from "../components/DeviceStatus";
-import TemperatureChart from "../components/TemperatureChart";
-import HumidityChart from "../components/HumidityChart";
-import BatteryChart from "../components/BatteryChart";
+import SymbolStatus from "../components/SymbolStatus";
 
 import {
-    getDevices,
-    getReadings,
+    getSymbols,
+    getTicks,
     getAlerts,
 } from "../services/quantpulseService";
 
 export default function Dashboard() {
 
-    const [devices, setDevices] = useState([]);
-    const [readings, setReadings] = useState([]);
+    const [symbols, setSymbols] = useState([]);
+    const [ticks, setTicks] = useState([]);
     const [alerts, setAlerts] = useState([]);
 
     useEffect(() => {
@@ -45,16 +39,12 @@ export default function Dashboard() {
 
         try {
 
-            const deviceData = await getDevices();
-            const readingData = await getReadings();
+            const symbolData = await getSymbols();
+            const tickData = await getTicks();
             const alertData = await getAlerts();
 
-            console.log("Devices:", deviceData);
-            console.log("Readings:", readingData);
-            console.log("Alerts:", alertData);
-
-            setDevices(Array.isArray(deviceData) ? deviceData : []);
-            setReadings(Array.isArray(readingData) ? readingData : []);
+            setSymbols(Array.isArray(symbolData) ? symbolData : []);
+            setTicks(Array.isArray(tickData) ? tickData : []);
             setAlerts(Array.isArray(alertData) ? alertData : []);
 
         }
@@ -67,7 +57,10 @@ export default function Dashboard() {
 
     }
 
-    const latest = readings.length ? readings[0] : null;
+    function tickerFor(symbolId) {
+        const match = symbols.find((s) => s.id === symbolId);
+        return match ? match.ticker : `#${symbolId}`;
+    }
 
     return (
 
@@ -81,43 +74,19 @@ export default function Dashboard() {
 
                 <div className="p-8">
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
 
                         <MetricCard
-                            title="Temperature"
-                            value={latest?.temperature ?? "--"}
-                            unit="°C"
-                            color="bg-red-500/20"
-                            icon={<Thermometer className="text-red-400" />}
-                        />
-
-                        <MetricCard
-                            title="Humidity"
-                            value={latest?.humidity ?? "--"}
-                            unit="%"
-                            color="bg-blue-500/20"
-                            icon={<Droplets className="text-blue-400" />}
-                        />
-
-                        <MetricCard
-                            title="Battery"
-                            value={latest?.battery ?? "--"}
-                            unit="%"
-                            color="bg-green-500/20"
-                            icon={<Battery className="text-green-400" />}
-                        />
-
-                        <MetricCard
-                            title="Devices"
-                            value={devices.length}
+                            title="Symbols Tracked"
+                            value={symbols.length}
                             unit=""
                             color="bg-cyan-500/20"
-                            icon={<Cpu className="text-cyan-400" />}
+                            icon={<TrendingUp className="text-cyan-400" />}
                         />
 
                         <MetricCard
-                            title="Readings"
-                            value={readings.length}
+                            title="Ticks Ingested"
+                            value={ticks.length}
                             unit=""
                             color="bg-purple-500/20"
                             icon={<Database className="text-purple-400" />}
@@ -133,37 +102,17 @@ export default function Dashboard() {
 
                     </div>
 
-                    <div className="grid xl:grid-cols-2 gap-6 mb-8">
-
-                        <SectionCard title="Temperature Trend">
-                            <TemperatureChart readings={readings} />
-                        </SectionCard>
-
-                        <SectionCard title="Humidity Trend">
-                            <HumidityChart readings={readings} />
-                        </SectionCard>
-
-                    </div>
-
                     <div className="mb-8">
 
-                        <SectionCard title="Battery Trend">
-                            <BatteryChart readings={readings} />
-                        </SectionCard>
-
-                    </div>
-
-                    <div className="mb-8">
-
-                        <SectionCard title="Device Status">
-                            <DeviceStatus devices={devices} />
+                        <SectionCard title="Tracked Symbols">
+                            <SymbolStatus symbols={symbols} />
                         </SectionCard>
 
                     </div>
 
                     <div className="grid xl:grid-cols-2 gap-6">
 
-                        <SectionCard title="Latest Readings">
+                        <SectionCard title="Latest Ticks">
 
                             <table className="w-full">
 
@@ -171,10 +120,9 @@ export default function Dashboard() {
 
                                     <tr className="border-b border-slate-700">
 
-                                        <th className="text-left py-3">Device</th>
-                                        <th className="text-left">Temp</th>
-                                        <th className="text-left">Humidity</th>
-                                        <th className="text-left">Battery</th>
+                                        <th className="text-left py-3">Symbol</th>
+                                        <th className="text-left">Price</th>
+                                        <th className="text-left">Volume</th>
 
                                     </tr>
 
@@ -182,22 +130,20 @@ export default function Dashboard() {
 
                                 <tbody>
 
-                                    {readings.slice(0,8).map((reading)=>(
+                                    {ticks.slice(0, 8).map((tick) => (
 
                                         <tr
-                                            key={reading.id}
+                                            key={tick.id}
                                             className="border-b border-slate-800"
                                         >
 
                                             <td className="py-3">
-                                                Device {reading.device_id}
+                                                {tickerFor(tick.symbol_id)}
                                             </td>
 
-                                            <td>{reading.temperature}°C</td>
+                                            <td>{tick.price}</td>
 
-                                            <td>{reading.humidity}%</td>
-
-                                            <td>{reading.battery}%</td>
+                                            <td>{tick.volume}</td>
 
                                         </tr>
 
@@ -211,7 +157,7 @@ export default function Dashboard() {
 
                         <SectionCard title="Recent Alerts">
 
-                            {alerts.slice(0,8).map((alert)=>(
+                            {alerts.slice(0, 8).map((alert) => (
 
                                 <div
                                     key={alert.id}
@@ -225,7 +171,7 @@ export default function Dashboard() {
                                         </div>
 
                                         <div className="text-slate-400 text-sm">
-                                            Device {alert.device_id}
+                                            {tickerFor(alert.symbol_id)}
                                         </div>
 
                                     </div>
@@ -245,6 +191,12 @@ export default function Dashboard() {
                                 </div>
 
                             ))}
+
+                            {alerts.length === 0 && (
+                                <p className="text-slate-500 text-sm">
+                                    No alerts yet.
+                                </p>
+                            )}
 
                         </SectionCard>
 

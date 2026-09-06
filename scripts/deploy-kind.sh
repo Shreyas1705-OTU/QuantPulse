@@ -34,6 +34,14 @@ echo "[6/8] Deploying backend and frontend..."
 kubectl apply -f k8s/backend/
 kubectl apply -f k8s/frontend/
 
+# kubectl apply only restarts a pod when the Deployment's own YAML text
+# changes -- since the image tag here is always ":latest", a rebuilt image
+# with new code looks "unchanged" to kubectl even though its content is
+# different, so the already-running pod would otherwise keep serving the
+# stale image. Force a rollout restart every run so this can't happen.
+kubectl rollout restart deployment/backend -n quantpulse
+kubectl rollout restart deployment/frontend -n quantpulse
+
 echo ""
 echo "[7/8] Deploying monitoring stack..."
 kubectl apply -f k8s/monitoring/prometheus/
