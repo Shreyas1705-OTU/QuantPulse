@@ -15,6 +15,7 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+      - "ingestion/**"
       - ".github/workflows/build-push-acr.yml"
   workflow_dispatch: {}
 
@@ -31,6 +32,8 @@ jobs:
             context: ./backend
           - image: quantpulse-frontend
             context: ./frontend
+          - image: quantpulse-ingestion
+            context: ./ingestion
 
     steps:
       - name: Checkout

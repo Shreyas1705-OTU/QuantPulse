@@ -7,32 +7,60 @@ echo " QuantPulse Kubernetes Deployment"
 echo "========================================"
 
 echo ""
-echo "[1/8] Building backend image..."
+echo "[1/9] Building backend image..."
 docker build -t quantpulse-backend:latest ./backend
 
 echo ""
-echo "[2/8] Building frontend image..."
+echo "[2/9] Building frontend image..."
 docker build -t quantpulse-frontend:latest ./frontend
 
 echo ""
-echo "[3/8] Loading images into Kind..."
-kind load docker-image quantpulse-backend:latest --name quantpulse
-kind load docker-image quantpulse-frontend:latest --name quantpulse
+echo "[3/9] Building ingestion image..."
+docker build -t quantpulse-ingestion:latest ./ingestion
 
 echo ""
-echo "[4/8] Creating namespace and configuration..."
+echo "[4/9] Loading images into Kind..."
+kind load docker-image quantpulse-backend:latest --name quantpulse
+kind load docker-image quantpulse-frontend:latest --name quantpulse
+kind load docker-image quantpulse-ingestion:latest --name quantpulse
+
+echo ""
+echo "[5/9] Creating namespace and configuration..."
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/secret.yaml
 
+# The Finnhub API key is a real external credential, unlike the demo
+# secrets above -- never committed to git. Create it here (once) from the
+# FINNHUB_API_KEY env var so the deploy stays a single command, without
+# ever writing the real key into a tracked file.
+if kubectl get secret finnhub-secret -n quantpulse >/dev/null 2>&1; then
+  echo "finnhub-secret already exists, leaving it as-is."
+else
+  if [ -z "$FINNHUB_API_KEY" ]; then
+    echo ""
+    echo "ERROR: finnhub-secret does not exist yet, and FINNHUB_API_KEY"
+    echo "is not set in your shell. Export it first, then re-run:"
+    echo ""
+    echo "  export FINNHUB_API_KEY='your-key-here'"
+    echo ""
+    exit 1
+  fi
+
+  kubectl create secret generic finnhub-secret \
+    --namespace quantpulse \
+    --from-literal=FINNHUB_API_KEY="$FINNHUB_API_KEY"
+fi
+
 echo ""
-echo "[5/8] Deploying PostgreSQL..."
+echo "[6/9] Deploying PostgreSQL..."
 kubectl apply -f k8s/postgres/
 
 echo ""
-echo "[6/8] Deploying backend and frontend..."
+echo "[7/9] Deploying backend, frontend, and ingestion..."
 kubectl apply -f k8s/backend/
 kubectl apply -f k8s/frontend/
+kubectl apply -f k8s/ingestion/
 
 # kubectl apply only restarts a pod when the Deployment's own YAML text
 # changes -- since the image tag here is always ":latest", a rebuilt image
@@ -41,14 +69,15 @@ kubectl apply -f k8s/frontend/
 # stale image. Force a rollout restart every run so this can't happen.
 kubectl rollout restart deployment/backend -n quantpulse
 kubectl rollout restart deployment/frontend -n quantpulse
+kubectl rollout restart deployment/ingestion -n quantpulse
 
 echo ""
-echo "[7/8] Deploying monitoring stack..."
+echo "[8/9] Deploying monitoring stack..."
 kubectl apply -f k8s/monitoring/prometheus/
 kubectl apply -f k8s/monitoring/grafana/
 
 echo ""
-echo "[8/8] Deploying ingress..."
+echo "[9/9] Deploying ingress..."
 kubectl apply -f k8s/ingress/
 
 echo ""
@@ -56,6 +85,7 @@ echo "Waiting for deployments..."
 
 kubectl rollout status deployment/backend -n quantpulse
 kubectl rollout status deployment/frontend -n quantpulse
+kubectl rollout status deployment/ingestion -n quantpulse
 kubectl rollout status deployment/prometheus -n quantpulse
 kubectl rollout status deployment/grafana -n quantpulse
 

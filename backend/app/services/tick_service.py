@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 
-from app.core.metrics import TICKS_TOTAL
 from app.database.models import Tick
 
 
@@ -26,8 +25,6 @@ class TickService:
         self.db.add(tick)
         self.db.commit()
         self.db.refresh(tick)
-
-        TICKS_TOTAL.inc()
 
         # Anomaly detection (z-score/Bollinger on price/volume) and the
         # resulting alerts are Phase 3 work -- intentionally not here yet.

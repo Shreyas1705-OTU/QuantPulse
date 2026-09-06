@@ -23,6 +23,9 @@ resources:
   - frontend/deployment.yaml
   - frontend/service.yaml
 
+  - ingestion/deployment.yaml
+  - ingestion/service.yaml
+
   - monitoring/prometheus/configmap.yaml
   - monitoring/prometheus/deployment.yaml
   - monitoring/prometheus/service.yaml

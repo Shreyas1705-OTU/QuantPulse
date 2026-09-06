@@ -19,6 +19,9 @@ images:
   - name: quantpulse-frontend
     newName: quantpulseacrsd.azurecr.io/quantpulse-frontend
     newTag: latest
+  - name: quantpulse-ingestion
+    newName: quantpulseacrsd.azurecr.io/quantpulse-ingestion
+    newTag: latest
 
 # Never on Kind means "only use what's already loaded into the node" — the
 # right default for a from-source local dev loop. On AKS there's no local
@@ -35,6 +38,13 @@ patches:
   - target:
       kind: Deployment
       name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: ingestion
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy

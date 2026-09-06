@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: ingestion
+  namespace: quantpulse
+
+spec:
+  # MUST stay 1 -- multiple replicas would each independently subscribe
+  # to Finnhub and duplicate-insert every trade. Never scale this up.
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: ingestion
+
+  template:
+    metadata:
+      labels:
+        app: ingestion
+
+    spec:
+      containers:
+        - name: ingestion
+
+          image: quantpulse-ingestion:latest
+          imagePullPolicy: Never
+
+          ports:
+            - containerPort: 8001
+
+          env:
+
+            - name: DATABASE_URL
+              value: "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse"
+
+            - name: FINNHUB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: finnhub-secret
+                  key: FINNHUB_API_KEY

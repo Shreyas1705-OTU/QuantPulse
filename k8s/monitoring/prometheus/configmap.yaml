@@ -19,3 +19,11 @@ data:
         static_configs:
           - targets:
               - backend:8000
+
+      - job_name: "quantpulse-ingestion"
+
+        metrics_path: /metrics
+
+        static_configs:
+          - targets:
+              - ingestion:8001

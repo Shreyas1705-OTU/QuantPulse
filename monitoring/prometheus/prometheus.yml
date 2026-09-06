@@ -7,3 +7,9 @@ scrape_configs:
     static_configs:
       - targets:
           - backend:8000
+
+  - job_name: "quantpulse-ingestion"
+
+    static_configs:
+      - targets:
+          - ingestion:8001
