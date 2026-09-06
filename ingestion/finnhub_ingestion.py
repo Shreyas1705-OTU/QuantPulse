@@ -32,29 +32,61 @@ TICKS_INGESTED_TOTAL = Counter(
 )
 
 engine = create_engine(DATABASE_URL)
-metadata = MetaData()
-metadata.reflect(bind=engine, only=["symbols", "ticks"])
-
-symbols_table = metadata.tables["symbols"]
-ticks_table = metadata.tables["ticks"]
 
 
-def load_symbol_map():
-    """ticker -> symbol_id, for every active symbol."""
-    with engine.connect() as conn:
-        rows = conn.execute(
-            select(symbols_table.c.id, symbols_table.c.ticker)
-            .where(symbols_table.c.is_active.is_(True))
-        )
-        return {row.ticker: row.id for row in rows}
+def wait_for_schema(max_retries=30, retry_delay=5):
+    """
+    Reflect the symbols/ticks tables, retrying until they exist.
+
+    This service can start before Alembic has created the schema: on a
+    completely fresh cluster, every Deployment (including this one) gets
+    applied at once, and the migration only runs afterward, as a
+    separate script step. Never showed up on Kind during this project's
+    iteration (its Postgres already had the schema from earlier runs),
+    but is a real race on a first-ever deploy -- exactly what AKS
+    validation exists to catch. Don't assume dependency ordering; wait
+    for it instead.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            metadata = MetaData()
+            metadata.reflect(bind=engine, only=["symbols", "ticks"])
+            return metadata.tables["symbols"], metadata.tables["ticks"]
+        except Exception as e:
+            print(f"[{attempt}/{max_retries}] Schema not ready yet ({e}) -- retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
+
+    raise RuntimeError(
+        f"Gave up after {max_retries} attempts -- symbols/ticks tables never appeared."
+    )
+
+
+symbols_table, ticks_table = wait_for_schema()
+
+
+def load_symbol_map(max_retries=30, retry_delay=5):
+    """ticker -> symbol_id, for every active symbol. Retries until seeded."""
+    for attempt in range(1, max_retries + 1):
+        with engine.connect() as conn:
+            rows = conn.execute(
+                select(symbols_table.c.id, symbols_table.c.ticker)
+                .where(symbols_table.c.is_active.is_(True))
+            )
+            symbol_map = {row.ticker: row.id for row in rows}
+
+        if symbol_map:
+            return symbol_map
+
+        print(f"[{attempt}/{max_retries}] symbols table is empty -- waiting for seed data...")
+        time.sleep(retry_delay)
+
+    raise RuntimeError(
+        f"Gave up after {max_retries} attempts -- no active symbols found. "
+        "Has the database been seeded?"
+    )
 
 
 SYMBOL_MAP = load_symbol_map()
-
-if not SYMBOL_MAP:
-    raise RuntimeError(
-        "No active symbols found -- has the database been seeded?"
-    )
 
 print(f"Loaded {len(SYMBOL_MAP)} active symbols: {list(SYMBOL_MAP)}")
 
