@@ -7,18 +7,27 @@ get back plain text), nothing more. Client construction (build_client)
 is separate from the calls themselves so both real usage and tests can
 supply a client without this module ever reaching out to Azure or
 requiring credentials just to import it.
+
+Uses the plain `OpenAI` client pointed at Azure's newer v1 API
+(base_url ending in /openai/v1), not the older `AzureOpenAI` class --
+new Azure OpenAI/Foundry resources hand you a v1-shaped endpoint
+directly (https://<resource>.openai.azure.com/openai/v1) and no
+api-version parameter is needed with it. AZURE_OPENAI_DEPLOYMENT is
+still required and still passed as `model` -- Azure always resolves by
+deployment name, never by the underlying model name, v1 API or not.
 """
 
 import os
 
 
 def build_client():
-    from openai import AzureOpenAI
+    from openai import OpenAI
 
-    return AzureOpenAI(
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    endpoint = os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/") + "/"
+
+    return OpenAI(
+        base_url=endpoint,
         api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
     )
 
 
