@@ -2,6 +2,19 @@
 
 set -e
 
+# Defense in depth: .env.azure (and any .env* file) is already covered by
+# .gitignore and has never been committed, but that only holds until
+# someone runs `git add -f`. This catches that case explicitly, before a
+# deploy could ever pick up and run with real secrets from a file that's
+# supposed to be local-only -- see scripts/env-azure.example.sh.
+tracked_env_files=$(git ls-files | grep -E '(^|/)\.env(\..+)?$' || true)
+if [ -n "$tracked_env_files" ]; then
+    echo "ERROR: the following .env file(s) are tracked by git and must never be:"
+    echo "$tracked_env_files"
+    echo "Run: git rm --cached <file> for each, then re-run this script."
+    exit 1
+fi
+
 echo "========================================"
 echo " QuantPulse Kubernetes Deployment"
 echo "========================================"
