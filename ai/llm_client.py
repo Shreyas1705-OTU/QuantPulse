@@ -59,6 +59,28 @@ def explain_alert(client, ticker, display_name, asset_type, severity, message):
     return _complete(client, system_prompt, user_prompt, max_tokens=120)
 
 
+def summarize_symbol_day(
+    client, ticker, display_name, asset_type,
+    window_open, latest_price, high, low, alert_count,
+):
+    system_prompt = (
+        "You are a markets assistant embedded in a real-time trading "
+        "dashboard. Write a short (2-3 sentence) running read of how this "
+        "symbol's session is going so far, based on its recent price "
+        "action. Be concrete about the direction and size of the move. "
+        "Do not give investment advice."
+    )
+    user_prompt = (
+        f"Symbol: {ticker} ({display_name}, {asset_type})\n"
+        f"Price at the start of this window: {window_open}\n"
+        f"Latest price: {latest_price}\n"
+        f"High: {high}\n"
+        f"Low: {low}\n"
+        f"Anomaly alerts triggered so far today: {alert_count}"
+    )
+    return _complete(client, system_prompt, user_prompt, max_tokens=120)
+
+
 def summarize_day(client, summary_date, alert_summaries):
     system_prompt = (
         "You are a markets assistant embedded in a real-time trading "

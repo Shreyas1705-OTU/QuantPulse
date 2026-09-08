@@ -10,3 +10,13 @@ class DailySummaryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SymbolSummaryResponse(BaseModel):
+    symbol_id: int
+    ticker: str
+    summary_text: str
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

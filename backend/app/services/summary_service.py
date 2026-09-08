@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.database.models import DailySummary
+from app.database.models import DailySummary, Symbol, SymbolSummary
 
 
 class SummaryService:
@@ -25,4 +25,22 @@ class SummaryService:
             self.db.query(DailySummary)
             .order_by(DailySummary.summary_date.desc())
             .first()
+        )
+
+    def get_symbol_summaries(self):
+        # One row per symbol that has one yet -- a symbol with no ticks,
+        # or whose first ai/symbol_summary.py run hasn't fired since it
+        # started trading, just doesn't appear (not an error, nothing to
+        # 404 on -- the caller renders an empty list as "no summary yet"
+        # per symbol).
+        return (
+            self.db.query(
+                SymbolSummary.symbol_id,
+                Symbol.ticker,
+                SymbolSummary.summary_text,
+                SymbolSummary.updated_at,
+            )
+            .join(Symbol, Symbol.id == SymbolSummary.symbol_id)
+            .order_by(Symbol.ticker)
+            .all()
         )

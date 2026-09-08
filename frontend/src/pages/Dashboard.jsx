@@ -13,6 +13,7 @@ import MetricCard from "../components/MetricCard";
 import SectionCard from "../components/SectionCard";
 import PriceTrendCard from "../components/PriceTrendCard";
 import TradeSummaryTable from "../components/TradeSummaryTable";
+import SymbolInsights from "../components/SymbolInsights";
 
 import {
     getSymbols,
@@ -21,6 +22,7 @@ import {
     getAlerts,
     getAlertsCount,
     getTodaySummary,
+    getSymbolSummaries,
 } from "../services/quantpulseService";
 
 export default function Dashboard() {
@@ -33,6 +35,7 @@ export default function Dashboard() {
     const [alerts, setAlerts] = useState([]);
     const [alertsTotal, setAlertsTotal] = useState(0);
     const [summary, setSummary] = useState(null);
+    const [symbolSummaries, setSymbolSummaries] = useState({});
 
     const topRef = useRef(null);
     const trendsRef = useRef(null);
@@ -79,12 +82,14 @@ export default function Dashboard() {
                 alertData,
                 alertsCount,
                 summaryData,
+                symbolSummaryData,
             ] = await Promise.all([
                 getSymbols(),
                 getTicksCount(),
                 getAlerts(),
                 getAlertsCount(),
                 getTodaySummary(),
+                getSymbolSummaries(),
             ]);
 
             const symbolsArr = Array.isArray(symbolData) ? symbolData : [];
@@ -94,6 +99,14 @@ export default function Dashboard() {
             setAlerts(Array.isArray(alertData) ? alertData : []);
             setAlertsTotal(alertsCount);
             setSummary(summaryData);
+
+            // Keyed by symbol_id for O(1) lookup per tile in SymbolInsights,
+            // same pattern as trendsBySymbol below.
+            const summariesBySymbol = {};
+            (Array.isArray(symbolSummaryData) ? symbolSummaryData : []).forEach((s) => {
+                summariesBySymbol[s.symbol_id] = s;
+            });
+            setSymbolSummaries(summariesBySymbol);
 
             // Each symbol's own recent tick history -- feeds both its
             // Price Trends chart and its own group in Latest Ticks, so a
@@ -212,6 +225,19 @@ export default function Dashboard() {
                                 ))}
 
                             </div>
+
+                        </SectionCard>
+
+                    </div>
+
+                    <div className="mb-8">
+
+                        <SectionCard title="AI Symbol Insights">
+
+                            <SymbolInsights
+                                symbols={symbols}
+                                summaries={symbolSummaries}
+                            />
 
                         </SectionCard>
 

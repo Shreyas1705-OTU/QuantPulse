@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: ai-symbol-summary
+  namespace: quantpulse
+
+spec:
+  # Every 15 minutes -- a continuous per-symbol read that keeps refreshing
+  # all day, distinct from ai-daily-summary's once-a-day digest. Cheap in
+  # practice too: symbol_summary.py skips any symbol with no new ticks
+  # since its last summary, so idle/closed symbols cost nothing extra.
+  schedule: "*/15 * * * *"
+
+  # symbol_summary.py is idempotent (upsert keyed on symbol_id, guarded
+  # by through_tick_id), but no reason to ever run two at once.
+  concurrencyPolicy: Forbid
+
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+
+      template:
+        spec:
+          restartPolicy: Never
+
+          containers:
+            - name: ai-symbol-summary
+
+              image: quantpulse-ai:latest
+              imagePullPolicy: Never
+
+              command: ["python", "symbol_summary.py"]
+
+              env:
+                - name: DATABASE_URL
+                  value: "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse"
+
+                - name: AZURE_OPENAI_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_ENDPOINT
+
+                - name: AZURE_OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_API_KEY
+
+                - name: AZURE_OPENAI_DEPLOYMENT
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_DEPLOYMENT

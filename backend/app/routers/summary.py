@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
 from app.database.session import get_db
-from app.schemas.summary import DailySummaryResponse
+from app.schemas.summary import DailySummaryResponse, SymbolSummaryResponse
 from app.services.summary_service import SummaryService
 
 router = APIRouter(
@@ -34,3 +34,17 @@ def get_today_summary(
         )
 
     return summary
+
+
+@router.get(
+    "/symbols",
+    response_model=list[SymbolSummaryResponse],
+)
+def get_symbol_summaries(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # No 404 here, unlike /today -- an empty list (nothing generated yet
+    # for any symbol) is a normal, renderable state, not an error.
+    service = SummaryService(db)
+    return service.get_symbol_summaries()

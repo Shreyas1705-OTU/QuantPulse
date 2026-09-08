@@ -50,3 +50,10 @@ export async function getTodaySummary() {
         throw err;
     }
 }
+
+export async function getSymbolSummaries() {
+    // No 404 case here -- the endpoint always returns a list, empty or
+    // not (an empty list just means no symbol has a summary yet).
+    const response = await api.get("/summary/symbols");
+    return response.data;
+}

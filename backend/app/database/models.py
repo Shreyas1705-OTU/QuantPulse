@@ -101,6 +101,38 @@ class Tick(Base):
     )
 
 
+class SymbolSummary(Base):
+    __tablename__ = "symbol_summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # One row per symbol (upserted), unlike Alert -- this is a running
+    # "how's the day going" read, not a log of discrete events. Written
+    # by ai/symbol_summary.py on a recurring CronJob (every 15 min), not
+    # once a day like DailySummary below.
+    symbol_id = Column(
+        Integer,
+        ForeignKey("symbols.id"),
+        unique=True,
+        nullable=False,
+    )
+
+    summary_text = Column(Text, nullable=False)
+
+    # Highest ticks.id considered the last time this was generated -- lets
+    # the job skip a symbol with no new ticks since then (market closed,
+    # or just quiet) without spending an LLM call to restate the same
+    # thing.
+    through_tick_id = Column(Integer, nullable=True)
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
 class Alert(Base):
     __tablename__ = "alerts"
 
