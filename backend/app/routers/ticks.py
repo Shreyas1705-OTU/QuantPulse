@@ -62,6 +62,19 @@ def get_all_ticks(
 
 
 @router.get(
+    "/latest",
+    response_model=list[TickResponse],
+)
+def get_latest_ticks(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = TickService(db)
+
+    return service.get_latest_tick_per_symbol()
+
+
+@router.get(
     "/symbol/{symbol_id}",
     response_model=list[TickResponse],
 )

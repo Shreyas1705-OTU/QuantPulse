@@ -23,10 +23,23 @@ from collections import defaultdict, deque
 
 WINDOW = 30           # rolling sample size per symbol
 MIN_SAMPLES = 20      # don't flag anything until there's enough history
-Z_MEDIUM = 2.0
-Z_HIGH = 3.0
-COOLDOWN_SECONDS = 60  # per symbol, per kind -- avoids one alert per tick
-                       # during a sustained move
+
+# Volume varies far more tick-to-tick than price does -- any single
+# trade's size is close to independent of the last one, so a shared
+# threshold made volume fire on ordinary variance almost constantly in
+# practice (observed: 75+ alerts/day, nearly all small BTCUSDT/EUR_USD
+# volume blips). Price keeps the original bar; volume needs a much
+# higher one before it means anything.
+PRICE_Z_MEDIUM = 2.0
+PRICE_Z_HIGH = 3.0
+VOLUME_Z_MEDIUM = 4.0
+VOLUME_Z_HIGH = 6.0
+
+# Per symbol, per kind. Raised from 60s -- even with the higher volume
+# bar above, a genuinely volatile stretch could still refire every
+# window; 5 minutes keeps alerts meaningful without needing a fully
+# different (e.g. exponential backoff) suppression scheme.
+COOLDOWN_SECONDS = 300
 
 
 class _SymbolWindow:
@@ -36,11 +49,11 @@ class _SymbolWindow:
         self.last_alert_at = {}  # kind ("price"/"volume") -> datetime
 
 
-def _severity_for(z):
+def _severity_for(z, z_medium, z_high):
     az = abs(z)
-    if az >= Z_HIGH:
+    if az >= z_high:
         return "HIGH"
-    if az >= Z_MEDIUM:
+    if az >= z_medium:
         return "MEDIUM"
     return None
 
@@ -59,12 +72,13 @@ class AnomalyDetector:
         window = self._windows[ticker]
         alerts = []
 
-        for value, series, kind, label in (
-            (price, window.prices, "price", "Price"),
-            (volume, window.volumes, "volume", "Volume"),
+        for value, series, kind, label, z_medium, z_high in (
+            (price, window.prices, "price", "Price", PRICE_Z_MEDIUM, PRICE_Z_HIGH),
+            (volume, window.volumes, "volume", "Volume", VOLUME_Z_MEDIUM, VOLUME_Z_HIGH),
         ):
             alert = self._check_series(
-                series, value, kind, label, traded_at, window.last_alert_at
+                series, value, kind, label, z_medium, z_high,
+                traded_at, window.last_alert_at,
             )
             if alert:
                 alerts.append(alert)
@@ -75,7 +89,7 @@ class AnomalyDetector:
         return alerts
 
     @staticmethod
-    def _check_series(series, value, kind, label, now, last_alert_at):
+    def _check_series(series, value, kind, label, z_medium, z_high, now, last_alert_at):
         if len(series) < MIN_SAMPLES:
             return None
 
@@ -88,7 +102,7 @@ class AnomalyDetector:
             return None
 
         z = (value - mean) / stdev
-        severity = _severity_for(z)
+        severity = _severity_for(z, z_medium, z_high)
 
         if severity is None:
             return None

@@ -58,3 +58,18 @@ class TickService:
             .limit(limit)
             .all()
         )
+
+    def get_latest_tick_per_symbol(self):
+        # One row per symbol_id (its most recent tick) -- this is what
+        # lets the dashboard show a last-known price for a symbol whose
+        # market is currently closed, instead of nothing. Postgres's
+        # DISTINCT ON requires the ORDER BY to start with the same
+        # column(s) passed to .distinct(), which this does. id.desc() is
+        # just a deterministic tiebreaker for the (unlikely, but not
+        # impossible) case of two ticks sharing the same traded_at.
+        return (
+            self.db.query(Tick)
+            .distinct(Tick.symbol_id)
+            .order_by(Tick.symbol_id, Tick.traded_at.desc(), Tick.id.desc())
+            .all()
+        )

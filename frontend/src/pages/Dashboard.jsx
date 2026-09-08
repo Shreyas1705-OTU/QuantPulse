@@ -4,6 +4,7 @@ import {
     TrendingUp,
     Bell,
     Database,
+    Clock,
 } from "lucide-react";
 
 import Sidebar from "../components/Sidebar";
@@ -17,8 +18,10 @@ import {
     getSymbols,
     getTicks,
     getTicksCount,
+    getLatestTicks,
     getAlerts,
     getAlertsCount,
+    getTodaySummary,
 } from "../services/quantpulseService";
 
 export default function Dashboard() {
@@ -26,8 +29,10 @@ export default function Dashboard() {
     const [symbols, setSymbols] = useState([]);
     const [ticks, setTicks] = useState([]);
     const [ticksTotal, setTicksTotal] = useState(0);
+    const [latestTicks, setLatestTicks] = useState({});
     const [alerts, setAlerts] = useState([]);
     const [alertsTotal, setAlertsTotal] = useState(0);
+    const [summary, setSummary] = useState(null);
 
     useEffect(() => {
 
@@ -51,21 +56,35 @@ export default function Dashboard() {
                 symbolData,
                 tickData,
                 ticksCount,
+                latestTickData,
                 alertData,
                 alertsCount,
+                summaryData,
             ] = await Promise.all([
                 getSymbols(),
                 getTicks(),
                 getTicksCount(),
+                getLatestTicks(),
                 getAlerts(),
                 getAlertsCount(),
+                getTodaySummary(),
             ]);
 
             setSymbols(Array.isArray(symbolData) ? symbolData : []);
             setTicks(Array.isArray(tickData) ? tickData : []);
             setTicksTotal(ticksCount);
+
+            const latestBySymbol = {};
+            if (Array.isArray(latestTickData)) {
+                for (const tick of latestTickData) {
+                    latestBySymbol[tick.symbol_id] = tick;
+                }
+            }
+            setLatestTicks(latestBySymbol);
+
             setAlerts(Array.isArray(alertData) ? alertData : []);
             setAlertsTotal(alertsCount);
+            setSummary(summaryData);
 
         }
 
@@ -82,6 +101,13 @@ export default function Dashboard() {
         return match ? match.ticker : `#${symbolId}`;
     }
 
+    // NYSE hours apply uniformly to every equity, so if any one of them
+    // is closed right now, they all are -- one banner covers the whole
+    // asset class rather than repeating it per symbol.
+    const equitiesClosed = symbols.some(
+        (s) => s.asset_type === "equity" && !s.is_market_open
+    );
+
     return (
 
         <div className="flex bg-slate-950 min-h-screen">
@@ -93,6 +119,22 @@ export default function Dashboard() {
                 <Header />
 
                 <div className="p-8">
+
+                    {equitiesClosed && (
+
+                        <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-6 py-4 mb-8">
+
+                            <Clock size={20} className="text-amber-400 shrink-0" />
+
+                            <p className="text-amber-300 text-sm">
+                                US equity markets are currently closed.
+                                Equity prices below are from the last
+                                session. Forex and crypto continue trading.
+                            </p>
+
+                        </div>
+
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
 
@@ -125,7 +167,31 @@ export default function Dashboard() {
                     <div className="mb-8">
 
                         <SectionCard title="Tracked Symbols">
-                            <SymbolStatus symbols={symbols} />
+                            <SymbolStatus symbols={symbols} latestTicks={latestTicks} />
+                        </SectionCard>
+
+                    </div>
+
+                    <div className="mb-8">
+
+                        <SectionCard title="Today's Summary">
+
+                            {summary ? (
+
+                                <p className="text-slate-300 leading-relaxed">
+                                    {summary.summary_text}
+                                </p>
+
+                            ) : (
+
+                                <p className="text-slate-500 text-sm">
+                                    No summary generated yet -- the daily
+                                    summary runs once a day, after market
+                                    close.
+                                </p>
+
+                            )}
+
                         </SectionCard>
 
                     </div>
@@ -193,6 +259,19 @@ export default function Dashboard() {
                                         <div className="text-slate-400 text-sm">
                                             {tickerFor(alert.symbol_id)}
                                         </div>
+
+                                        {/* Filled in by the ai-explainer
+                                            CronJob shortly after the alert
+                                            is created -- absent here just
+                                            means it hasn't run yet, not an
+                                            error. */}
+                                        {alert.explanation && (
+
+                                            <div className="text-slate-300 text-sm mt-2 italic">
+                                                {alert.explanation}
+                                            </div>
+
+                                        )}
 
                                     </div>
 
