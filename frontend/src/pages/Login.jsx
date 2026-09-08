@@ -60,7 +60,7 @@ export default function Login() {
 
                     <div>
 
-                        <h1 className="font-display text-2xl font-bold text-ink">
+                        <h1 className="font-display text-2xl font-bold text-accent">
                             QuantPulse
                         </h1>
 

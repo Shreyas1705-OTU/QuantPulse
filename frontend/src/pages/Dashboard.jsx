@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
     TrendingUp,
@@ -15,7 +15,6 @@ import PriceTrendCard from "../components/PriceTrendCard";
 
 import {
     getSymbols,
-    getTicks,
     getTicksCount,
     getSymbolTicks,
     getAlerts,
@@ -25,13 +24,35 @@ import {
 
 export default function Dashboard() {
 
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+
     const [symbols, setSymbols] = useState([]);
-    const [ticks, setTicks] = useState([]);
     const [ticksTotal, setTicksTotal] = useState(0);
     const [priceTrends, setPriceTrends] = useState({});
     const [alerts, setAlerts] = useState([]);
     const [alertsTotal, setAlertsTotal] = useState(0);
     const [summary, setSummary] = useState(null);
+
+    const topRef = useRef(null);
+    const trendsRef = useRef(null);
+    const ticksRef = useRef(null);
+    const alertsRef = useRef(null);
+    const summaryRef = useRef(null);
+
+    const sectionRefs = {
+        top: topRef,
+        trends: trendsRef,
+        ticks: ticksRef,
+        alerts: alertsRef,
+        summary: summaryRef,
+    };
+
+    function handleNavigate(key) {
+        sectionRefs[key]?.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+    }
 
     useEffect(() => {
 
@@ -47,20 +68,18 @@ export default function Dashboard() {
 
         try {
 
-            // getTicks/getAlerts return a capped, latest-first slice (for
-            // the tables below) -- the counts come from their own /count
-            // endpoints so the metric tiles reflect the real totals
-            // without ever fetching the whole (ever-growing) table.
+            // getAlerts returns a capped, latest-first slice -- the counts
+            // come from their own /count endpoints so the metric tiles
+            // reflect the real totals without ever fetching the whole
+            // (ever-growing) table.
             const [
                 symbolData,
-                tickData,
                 ticksCount,
                 alertData,
                 alertsCount,
                 summaryData,
             ] = await Promise.all([
                 getSymbols(),
-                getTicks(),
                 getTicksCount(),
                 getAlerts(),
                 getAlertsCount(),
@@ -70,17 +89,18 @@ export default function Dashboard() {
             const symbolsArr = Array.isArray(symbolData) ? symbolData : [];
 
             setSymbols(symbolsArr);
-            setTicks(Array.isArray(tickData) ? tickData : []);
             setTicksTotal(ticksCount);
             setAlerts(Array.isArray(alertData) ? alertData : []);
             setAlertsTotal(alertsCount);
             setSummary(summaryData);
 
-            // Each symbol's own recent tick history, for its Price Trends
-            // card -- a symbol with no real ticks yet (e.g. an equity
-            // before this session's first Finnhub trade) just gets an
-            // empty array, which PriceTrendCard renders as "No data yet"
-            // rather than a fabricated chart.
+            // Each symbol's own recent tick history -- feeds both its
+            // Price Trends chart and its own group in Latest Ticks, so a
+            // symbol that trades far more often than the others (BTCUSDT
+            // ticking many times a second) can't crowd everyone else out
+            // of a single shared list. A symbol with no real ticks yet
+            // (e.g. an equity before this session's first Finnhub trade)
+            // just gets an empty array.
             const trendResults = await Promise.all(
                 symbolsArr.map((s) => getSymbolTicks(s.id, 30).catch(() => []))
             );
@@ -88,7 +108,9 @@ export default function Dashboard() {
             const trendsBySymbol = {};
             symbolsArr.forEach((s, i) => {
                 // API returns newest-first; a chart reads left-to-right
-                // chronologically.
+                // chronologically, so this is chronological order --
+                // Latest Ticks below re-reverses its own slice back to
+                // newest-first for display.
                 trendsBySymbol[s.id] = trendResults[i].slice().reverse();
             });
             setPriceTrends(trendsBySymbol);
@@ -103,11 +125,6 @@ export default function Dashboard() {
 
     }
 
-    function tickerFor(symbolId) {
-        const match = symbols.find((s) => s.id === symbolId);
-        return match ? match.ticker : `#${symbolId}`;
-    }
-
     // NYSE hours apply uniformly to every equity, so if any one of them
     // is closed right now, they all are -- one banner covers the whole
     // asset class rather than repeating it per symbol.
@@ -115,17 +132,26 @@ export default function Dashboard() {
         (s) => s.asset_type === "equity" && !s.is_market_open
     );
 
+    const symbolsWithTicks = symbols.filter(
+        (s) => (priceTrends[s.id] || []).length > 0
+    );
+
+    function tickerFor(symbolId) {
+        const match = symbols.find((s) => s.id === symbolId);
+        return match ? match.ticker : `#${symbolId}`;
+    }
+
     return (
 
         <div className="flex bg-canvas min-h-screen">
 
-            <Sidebar />
+            <Sidebar open={sidebarOpen} onNavigate={handleNavigate} />
 
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
 
-                <Header />
+                <Header onToggleSidebar={() => setSidebarOpen((v) => !v)} />
 
-                <div className="p-8">
+                <div ref={topRef} className="p-8">
 
                     {equitiesClosed && (
 
@@ -168,7 +194,7 @@ export default function Dashboard() {
 
                     </div>
 
-                    <div className="mb-8">
+                    <div ref={trendsRef} className="mb-8 scroll-mt-6">
 
                         <SectionCard title="Price Trends">
 
@@ -190,7 +216,7 @@ export default function Dashboard() {
 
                     </div>
 
-                    <div className="mb-8">
+                    <div ref={summaryRef} className="mb-8 scroll-mt-6">
 
                         <SectionCard title="Today's Summary">
 
@@ -216,106 +242,131 @@ export default function Dashboard() {
 
                     <div className="grid xl:grid-cols-2 gap-5">
 
-                        <SectionCard title="Latest Ticks">
+                        <div ref={ticksRef} className="scroll-mt-6">
 
-                            <table className="w-full">
+                            <SectionCard title="Latest Ticks">
 
-                                <thead>
+                                <div className="max-h-[480px] overflow-y-auto pr-1 space-y-5">
 
-                                    <tr className="border-b border-line text-muted text-xs">
+                                    {symbolsWithTicks.map((symbol) => (
 
-                                        <th className="text-left py-3 font-normal">Symbol</th>
-                                        <th className="text-left font-normal">Price</th>
-                                        <th className="text-left font-normal">Volume</th>
+                                        <div key={symbol.id}>
 
-                                    </tr>
+                                            <div className="text-sm font-semibold text-ink mb-2">
+                                                {symbol.ticker}
+                                            </div>
 
-                                </thead>
+                                            <table className="w-full">
 
-                                <tbody>
+                                                <tbody>
 
-                                    {ticks.slice(0, 8).map((tick) => (
+                                                    {priceTrends[symbol.id]
+                                                        .slice(-5)
+                                                        .reverse()
+                                                        .map((tick) => (
 
-                                        <tr
-                                            key={tick.id}
-                                            className="border-b border-surface-raised text-sm"
-                                        >
+                                                            <tr
+                                                                key={tick.id}
+                                                                className="border-b border-surface-raised text-sm last:border-b-0"
+                                                            >
 
-                                            <td className="py-3">
-                                                {tickerFor(tick.symbol_id)}
-                                            </td>
+                                                                <td className="py-2 text-muted w-1/3">
+                                                                    {new Date(tick.traded_at).toLocaleTimeString()}
+                                                                </td>
 
-                                            <td>{tick.price}</td>
+                                                                <td className="py-2">{tick.price}</td>
 
-                                            <td className="text-muted">{tick.volume}</td>
+                                                                <td className="py-2 text-muted text-right">{tick.volume}</td>
 
-                                        </tr>
+                                                            </tr>
+
+                                                        ))}
+
+                                                </tbody>
+
+                                            </table>
+
+                                        </div>
 
                                     ))}
 
-                                </tbody>
-
-                            </table>
-
-                        </SectionCard>
-
-                        <SectionCard title="Recent Alerts">
-
-                            {alerts.slice(0, 8).map((alert) => (
-
-                                <div
-                                    key={alert.id}
-                                    className="flex justify-between gap-4 py-4 border-b border-surface-raised last:border-b-0"
-                                >
-
-                                    <div>
-
-                                        <div className="text-ink font-semibold text-sm">
-                                            {alert.message}
-                                        </div>
-
-                                        <div className="text-faint text-xs mt-1">
-                                            {tickerFor(alert.symbol_id)}
-                                        </div>
-
-                                        {/* Filled in by the ai-explainer
-                                            CronJob shortly after the alert
-                                            is created -- absent here just
-                                            means it hasn't run yet, not an
-                                            error. */}
-                                        {alert.explanation && (
-
-                                            <div className="text-muted text-sm mt-2 italic leading-relaxed">
-                                                {alert.explanation}
-                                            </div>
-
-                                        )}
-
-                                    </div>
-
-                                    <span
-                                        className={`h-fit px-3 py-1 rounded-full text-xs font-semibold shrink-0 ${
-                                            alert.severity === "HIGH"
-                                                ? "bg-accent text-canvas"
-                                                : "bg-warn-soft text-warn"
-                                        }`}
-                                    >
-
-                                        {alert.severity}
-
-                                    </span>
+                                    {symbolsWithTicks.length === 0 && (
+                                        <p className="text-faint text-sm">
+                                            No ticks yet.
+                                        </p>
+                                    )}
 
                                 </div>
 
-                            ))}
+                            </SectionCard>
 
-                            {alerts.length === 0 && (
-                                <p className="text-faint text-sm">
-                                    No alerts yet.
-                                </p>
-                            )}
+                        </div>
 
-                        </SectionCard>
+                        <div ref={alertsRef} className="scroll-mt-6">
+
+                            <SectionCard title="Recent Alerts">
+
+                                <div className="max-h-[480px] overflow-y-auto pr-1">
+
+                                    {alerts.map((alert) => (
+
+                                        <div
+                                            key={alert.id}
+                                            className="flex flex-col gap-2 py-5 border-b border-surface-raised last:border-b-0"
+                                        >
+
+                                            <div className="flex justify-between items-start gap-4">
+
+                                                <div className="text-ink font-semibold text-sm leading-snug">
+                                                    {alert.message}
+                                                </div>
+
+                                                <span
+                                                    className={`h-fit px-3 py-1 rounded-full text-xs font-semibold shrink-0 ${
+                                                        alert.severity === "HIGH"
+                                                            ? "bg-accent text-canvas"
+                                                            : "bg-warn-soft text-warn"
+                                                    }`}
+                                                >
+
+                                                    {alert.severity}
+
+                                                </span>
+
+                                            </div>
+
+                                            <div className="text-faint text-xs">
+                                                {tickerFor(alert.symbol_id)}
+                                            </div>
+
+                                            {/* Filled in by the ai-explainer
+                                                CronJob shortly after the alert
+                                                is created -- absent here just
+                                                means it hasn't run yet, not an
+                                                error. */}
+                                            {alert.explanation && (
+
+                                                <div className="text-muted text-sm leading-relaxed">
+                                                    {alert.explanation}
+                                                </div>
+
+                                            )}
+
+                                        </div>
+
+                                    ))}
+
+                                    {alerts.length === 0 && (
+                                        <p className="text-faint text-sm">
+                                            No alerts yet.
+                                        </p>
+                                    )}
+
+                                </div>
+
+                            </SectionCard>
+
+                        </div>
 
                     </div>
 

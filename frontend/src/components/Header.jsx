@@ -1,4 +1,6 @@
-export default function Header() {
+import { Menu } from "lucide-react";
+
+export default function Header({ onToggleSidebar }) {
     return (
         <header className="relative flex items-center justify-between bg-canvas border-b border-line px-10 py-7 overflow-hidden">
 
@@ -13,20 +15,26 @@ export default function Header() {
                 }}
             />
 
-            <div className="relative">
-                <div className="relative inline-block">
-                    <span className="font-display text-3xl font-bold tracking-tight text-ink">
+            <div className="relative flex items-center gap-4">
+
+                <button
+                    onClick={onToggleSidebar}
+                    className="p-2 rounded-full text-muted hover:bg-surface hover:text-ink transition shrink-0"
+                    aria-label="Toggle sidebar"
+                >
+                    <Menu size={20} />
+                </button>
+
+                <div>
+                    <span className="font-display text-3xl font-bold tracking-tight text-accent">
                         QuantPulse
                     </span>
-                    <div
-                        className="absolute -left-1 -right-1 bottom-1.5 h-2.5 bg-accent opacity-85 -z-10"
-                        style={{ transform: "skewX(-8deg) rotate(-1.5deg)" }}
-                    />
+
+                    <p className="text-muted text-sm mt-1">
+                        Real-Time Market Monitoring Platform
+                    </p>
                 </div>
 
-                <p className="text-muted text-sm mt-1">
-                    Real-Time Market Monitoring Platform
-                </p>
             </div>
 
             <div className="relative flex items-center gap-2 bg-surface border border-line px-4 py-2 rounded-full">
