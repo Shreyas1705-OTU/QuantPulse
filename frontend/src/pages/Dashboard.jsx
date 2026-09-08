@@ -12,6 +12,7 @@ import Header from "../components/Header";
 import MetricCard from "../components/MetricCard";
 import SectionCard from "../components/SectionCard";
 import PriceTrendCard from "../components/PriceTrendCard";
+import TradeSummaryTable from "../components/TradeSummaryTable";
 
 import {
     getSymbols,
@@ -235,6 +236,19 @@ export default function Dashboard() {
                                 </p>
 
                             )}
+
+                        </SectionCard>
+
+                    </div>
+
+                    <div className="mb-8">
+
+                        <SectionCard title="Current Trade Summary">
+
+                            <TradeSummaryTable
+                                symbols={symbols}
+                                priceTrends={priceTrends}
+                            />
 
                         </SectionCard>
 

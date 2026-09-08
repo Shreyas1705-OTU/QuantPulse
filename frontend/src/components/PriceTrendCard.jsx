@@ -1,5 +1,6 @@
 import { ResponsiveContainer, LineChart, Line, YAxis } from "recharts";
-import { CheckCircle, XCircle, Clock } from "lucide-react";
+
+import StatusBadge from "./StatusBadge";
 
 // Change is computed over whatever window of ticks was fetched (see
 // getSymbolTicks in quantpulseService.js), not a real session-open price --
@@ -41,22 +42,7 @@ export default function PriceTrendCard({ symbol, ticks }) {
                     </div>
                 </div>
 
-                {!symbol.is_active ? (
-                    <span className="flex items-center gap-1 text-[10px] font-semibold text-faint bg-canvas px-2 py-0.5 rounded-full">
-                        <XCircle size={10} />
-                        Inactive
-                    </span>
-                ) : symbol.is_market_open ? (
-                    <span className="flex items-center gap-1 text-[10px] font-semibold text-accent bg-accent-soft px-2 py-0.5 rounded-full">
-                        <CheckCircle size={10} />
-                        Live
-                    </span>
-                ) : (
-                    <span className="flex items-center gap-1 text-[10px] font-semibold text-warn bg-warn-soft px-2 py-0.5 rounded-full">
-                        <Clock size={10} />
-                        Closed
-                    </span>
-                )}
+                <StatusBadge symbol={symbol} />
 
             </div>
 
