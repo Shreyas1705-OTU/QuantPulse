@@ -29,6 +29,20 @@ AKS_CLUSTER="${AZURE_AKS_CLUSTER:-aks-quantpulse}"
 ACR_NAME="${AZURE_ACR_NAME:-quantpulseacrsd}"
 ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 
+# Deployed by this exact tag, never by the mutable `latest` -- see the
+# long comment in overlays/aks/kustomization.yaml for why. `latest` is
+# still pushed alongside it purely for convenience (a manual `docker
+# pull ...:latest` to poke at an image), but it's never what gets
+# deployed. A dirty working tree gets a timestamp appended so repeated
+# local iterations each still get a genuinely new tag -- otherwise two
+# deploys in a row from the same uncommitted changes would collide on
+# the same "-dirty" tag and reintroduce the exact staleness problem a
+# real per-deploy tag exists to avoid.
+IMAGE_TAG="$(git rev-parse --short HEAD)"
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  IMAGE_TAG="${IMAGE_TAG}-dirty-$(date +%s)"
+fi
+
 echo "========================================"
 echo " QuantPulse AKS Deployment"
 echo "========================================"
@@ -47,33 +61,37 @@ echo "[2/9] Logging Docker into ACR..."
 az acr login --name "$ACR_NAME"
 
 echo ""
-echo "[3/9] Building + pushing backend image (linux/arm64)..."
+echo "[3/9] Building + pushing backend image (linux/arm64, tag ${IMAGE_TAG})..."
 docker buildx build \
   --platform linux/arm64 \
+  -t "${ACR_LOGIN_SERVER}/quantpulse-backend:${IMAGE_TAG}" \
   -t "${ACR_LOGIN_SERVER}/quantpulse-backend:latest" \
   --push \
   ./backend
 
 echo ""
-echo "[4/9] Building + pushing frontend image (linux/arm64)..."
+echo "[4/9] Building + pushing frontend image (linux/arm64, tag ${IMAGE_TAG})..."
 docker buildx build \
   --platform linux/arm64 \
+  -t "${ACR_LOGIN_SERVER}/quantpulse-frontend:${IMAGE_TAG}" \
   -t "${ACR_LOGIN_SERVER}/quantpulse-frontend:latest" \
   --push \
   ./frontend
 
 echo ""
-echo "[5/9] Building + pushing ingestion image (linux/arm64)..."
+echo "[5/9] Building + pushing ingestion image (linux/arm64, tag ${IMAGE_TAG})..."
 docker buildx build \
   --platform linux/arm64 \
+  -t "${ACR_LOGIN_SERVER}/quantpulse-ingestion:${IMAGE_TAG}" \
   -t "${ACR_LOGIN_SERVER}/quantpulse-ingestion:latest" \
   --push \
   ./ingestion
 
 echo ""
-echo "[6/9] Building + pushing ai image (linux/arm64)..."
+echo "[6/9] Building + pushing ai image (linux/arm64, tag ${IMAGE_TAG})..."
 docker buildx build \
   --platform linux/arm64 \
+  -t "${ACR_LOGIN_SERVER}/quantpulse-ai:${IMAGE_TAG}" \
   -t "${ACR_LOGIN_SERVER}/quantpulse-ai:latest" \
   --push \
   ./ai
@@ -82,12 +100,15 @@ echo ""
 echo "[7/9] Applying Kubernetes manifests (namespace, config, postgres,"
 echo "backend, frontend, ingestion, ai jobs, monitoring, ingress) via the aks overlay..."
 # Not a plain `kubectl apply -k overlays/aks` -- the overlay's images
-# section holds the literal placeholder __ACR_LOGIN_SERVER__ (kustomize
-# has no templating of its own), so the real registry is substituted in
-# after rendering, right before it's applied. This is what lets the same
-# overlay target anyone's ACR via $ACR_NAME instead of only this
-# project's own.
-kubectl kustomize overlays/aks | sed "s|__ACR_LOGIN_SERVER__|${ACR_LOGIN_SERVER}|g" | kubectl apply -f -
+# section holds the literal placeholders __ACR_LOGIN_SERVER__ and
+# __IMAGE_TAG__ (kustomize has no templating of its own), so both are
+# substituted in after rendering, right before it's applied. This is what
+# lets the same overlay target anyone's ACR via $ACR_NAME instead of only
+# this project's own, and deploy by this exact build's tag instead of a
+# mutable `latest`.
+kubectl kustomize overlays/aks \
+  | sed "s|__ACR_LOGIN_SERVER__|${ACR_LOGIN_SERVER}|g; s|__IMAGE_TAG__|${IMAGE_TAG}|g" \
+  | kubectl apply -f -
 
 # The Finnhub API key is a real external credential, unlike the demo
 # secrets in k8s/secret.yaml -- never committed to git. Create it here
@@ -131,14 +152,6 @@ else
   echo "created -- everything else deploys and works normally."
   echo ""
 fi
-
-# Same reasoning as deploy-kind.sh: the image tag here is always ":latest",
-# so a freshly-pushed image with new code looks "unchanged" to kubectl and
-# won't trigger a pod restart on its own. Force one every run. (Not needed
-# for the ai CronJobs -- see deploy-kind.sh comment.)
-kubectl rollout restart deployment/backend -n quantpulse
-kubectl rollout restart deployment/frontend -n quantpulse
-kubectl rollout restart deployment/ingestion -n quantpulse
 
 echo ""
 echo "Waiting for deployments..."

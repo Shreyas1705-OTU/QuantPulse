@@ -10,45 +10,59 @@ resources:
 
 # Rewrites `image: quantpulse-backend:latest` / `quantpulse-frontend:latest`
 # to the ACR-hosted images built via `docker buildx` + pushed for
-# linux/arm64. __ACR_LOGIN_SERVER__ is a placeholder, not a real host --
-# kustomize has no templating, so deploy-aks.sh substitutes it for the
-# real registry (from $ACR_NAME, which defaults to this project's own but
-# is overridable) at render time, via
+# linux/arm64. __ACR_LOGIN_SERVER__ and __IMAGE_TAG__ are placeholders, not
+# real values -- kustomize has no templating, so deploy-aks.sh substitutes
+# both at render time (from $ACR_NAME, which defaults to this project's own
+# but is overridable, and a tag computed from the current git commit) via
 # `kubectl kustomize | sed | kubectl apply -f -` rather than
 # `kubectl apply -k` directly. This is what makes the same overlay work
 # against anyone's ACR, not just this project's own -- see
 # scripts/env-azure.example.sh. Matches by image *name*, so the base
 # files never need to know about ACR either way.
+#
+# __IMAGE_TAG__ specifically (not a hardcoded `latest`) is what makes
+# imagePullPolicy: IfNotPresent below actually correct, not just cheap --
+# see the patches comment.
 images:
   - name: quantpulse-backend
     newName: __ACR_LOGIN_SERVER__/quantpulse-backend
-    newTag: latest
+    newTag: __IMAGE_TAG__
   - name: quantpulse-frontend
     newName: __ACR_LOGIN_SERVER__/quantpulse-frontend
-    newTag: latest
+    newTag: __IMAGE_TAG__
   - name: quantpulse-ingestion
     newName: __ACR_LOGIN_SERVER__/quantpulse-ingestion
-    newTag: latest
+    newTag: __IMAGE_TAG__
   - name: quantpulse-ai
     newName: __ACR_LOGIN_SERVER__/quantpulse-ai
-    newTag: latest
+    newTag: __IMAGE_TAG__
 
 # Never on Kind means "only use what's already loaded into the node" — the
-# right default for a from-source local dev loop. On AKS there's no local
-# image to reuse, so every workload here gets Always, not IfNotPresent --
-# newTag above is the mutable `latest` tag, and IfNotPresent only checks
-# whether *some* image already exists on the node under that name:tag; it
-# never compares against what the registry currently holds. That bit
-# real: a redeploy's freshly-pushed backend image (new migration file
-# included) got pushed to ACR fine, `kubectl rollout restart` even forced
-# a brand new pod -- but the node still had an OLDER digest cached under
-# `quantpulse-backend:latest` from an earlier deploy, so the new pod ran
-# with stale code anyway (confirmed by comparing the running pod's
-# imageID against ACR's actual latest digest). rollout restart forces a
-# new POD; it does nothing about which image that pod ends up running.
-# Always is the only pull policy that's actually correct for a mutable
-# tag redeployed to a long-lived node -- the extra registry check per
-# pod start is negligible at this project's scale.
+# right default for a from-source local dev loop.
+#
+# On AKS, every workload gets IfNotPresent -- correct here (unlike an
+# earlier version of this file) specifically because the tag above is no
+# longer the mutable `latest`: deploy-aks.sh computes a real per-deploy tag
+# (the current git commit, `-dirty-<timestamp>` appended for uncommitted
+# changes so repeated local iterations still get a genuinely new tag each
+# time), so IfNotPresent's "does *some* image already exist on the node
+# under this exact name:tag" check is now asking the right question -- a
+# new deploy always means a new tag string the node has never seen, so it
+# always pulls, and a redeploy of unchanged code never wastes a pull.
+#
+# This replaces an earlier fix that kept `latest` and set every pull
+# policy to Always instead: that worked, but depended on Always correctly
+# out-racing ACR's own tag-propagation lag (observed live, twice, as a
+# several-second gap between a push completing and `:latest` resolving to
+# it registry-side) -- correct eventually, but not guaranteed instant. A
+# real per-deploy tag removes the ambiguity at the root: there is no
+# stale image to accidentally serve under a tag nothing pushed to it.
+#
+# One consequence: `kubectl apply` on a new tag is itself a real Deployment
+# spec change now, so Kubernetes rolls it on its own -- deploy-aks.sh no
+# longer needs an explicit `kubectl rollout restart` to force a pod
+# refresh (that was only ever a workaround for `latest` never looking
+# "changed" to kubectl).
 patches:
   - target:
       kind: Deployment
@@ -56,39 +70,39 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: Always
+        value: IfNotPresent
   - target:
       kind: Deployment
       name: frontend
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: Always
+        value: IfNotPresent
   - target:
       kind: Deployment
       name: ingestion
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: Always
+        value: IfNotPresent
   - target:
       kind: CronJob
       name: ai-explainer
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: Always
+        value: IfNotPresent
   - target:
       kind: CronJob
       name: ai-daily-summary
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: Always
+        value: IfNotPresent
   - target:
       kind: CronJob
       name: ai-symbol-summary
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: Always
+        value: IfNotPresent
