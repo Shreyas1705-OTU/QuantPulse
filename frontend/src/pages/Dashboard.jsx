@@ -27,7 +27,7 @@ import {
 
 export default function Dashboard() {
 
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const [symbols, setSymbols] = useState([]);
     const [ticksTotal, setTicksTotal] = useState(0);
