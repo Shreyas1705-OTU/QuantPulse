@@ -174,7 +174,19 @@ def on_message(ws, message):
             print(f"  [{severity}] {ticker}: {message}")
 
 
+# Set by on_error, read by run() after ws.run_forever() returns -- lets
+# the reconnect logic tell a 429 (Finnhub's own connection-rate limit)
+# apart from an ordinary dropped connection, without changing
+# websocket-client's on_error/on_close callback signatures to smuggle it
+# through some other way.
+_last_error = {"value": None}
+
+BASE_RECONNECT_DELAY = 5
+MAX_RECONNECT_DELAY = 60
+
+
 def on_error(ws, error):
+    _last_error["value"] = error
     print("WebSocket error:", error)
 
 
@@ -188,11 +200,46 @@ def on_open(ws):
     print(f"Subscribed to: {list(SYMBOL_MAP)}")
 
 
+def _rate_limit_wait_seconds(error):
+    """
+    If `error` is a 429 handshake rejection carrying Finnhub's own
+    x-ratelimit-reset header, how long to wait until that reset (plus a
+    small buffer) -- None otherwise.
+
+    Retrying a 429 on the same flat delay as an ordinary dropped
+    connection is actively self-defeating: Finnhub's free tier only
+    allows a handful of new connection attempts per short window
+    (observed live: x-ratelimit-limit: 5), so hammering it every 5s
+    burns through that budget in seconds and then keeps getting
+    rejected for the rest of the window -- seen live as a real,
+    sustained reconnect storm with almost no actual connected time,
+    starving every symbol's tick flow, not just one.
+    """
+    if not isinstance(error, websocket.WebSocketBadStatusException):
+        return None
+    if error.status_code != 429:
+        return None
+
+    reset_at = (error.resp_headers or {}).get("x-ratelimit-reset")
+    if reset_at is None:
+        return None
+
+    try:
+        return max(float(reset_at) - time.time(), 0) + 2
+    except (TypeError, ValueError):
+        return None
+
+
 def run():
     start_http_server(8001)
     print("Metrics server listening on :8001/metrics")
 
+    backoff = BASE_RECONNECT_DELAY
+
     while True:
+        _last_error["value"] = None
+        connected_at = time.time()
+
         ws = websocket.WebSocketApp(
             f"wss://ws.finnhub.io?token={FINNHUB_API_KEY}",
             on_open=on_open,
@@ -204,8 +251,22 @@ def run():
         # blip); when it returns, reconnect rather than let the process
         # exit and crash-loop.
         ws.run_forever()
-        print("Connection lost -- reconnecting in 5 seconds...")
-        time.sleep(5)
+
+        # Stayed up a while -- the backoff already did its job. Reset it
+        # so one future blip doesn't inherit a wait time built up from
+        # much earlier trouble.
+        if time.time() - connected_at > MAX_RECONNECT_DELAY:
+            backoff = BASE_RECONNECT_DELAY
+
+        rate_limit_wait = _rate_limit_wait_seconds(_last_error["value"])
+        if rate_limit_wait is not None:
+            delay = rate_limit_wait
+        else:
+            delay = backoff
+            backoff = min(backoff * 2, MAX_RECONNECT_DELAY)
+
+        print(f"Connection lost -- reconnecting in {delay:.0f} seconds...")
+        time.sleep(delay)
 
 
 if __name__ == "__main__":
