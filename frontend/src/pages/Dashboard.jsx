@@ -16,14 +16,18 @@ import SymbolStatus from "../components/SymbolStatus";
 import {
     getSymbols,
     getTicks,
+    getTicksCount,
     getAlerts,
+    getAlertsCount,
 } from "../services/quantpulseService";
 
 export default function Dashboard() {
 
     const [symbols, setSymbols] = useState([]);
     const [ticks, setTicks] = useState([]);
+    const [ticksTotal, setTicksTotal] = useState(0);
     const [alerts, setAlerts] = useState([]);
+    const [alertsTotal, setAlertsTotal] = useState(0);
 
     useEffect(() => {
 
@@ -39,13 +43,29 @@ export default function Dashboard() {
 
         try {
 
-            const symbolData = await getSymbols();
-            const tickData = await getTicks();
-            const alertData = await getAlerts();
+            // getTicks/getAlerts return a capped, latest-first slice (for
+            // the tables below) -- the counts come from their own /count
+            // endpoints so the metric tiles reflect the real totals
+            // without ever fetching the whole (ever-growing) table.
+            const [
+                symbolData,
+                tickData,
+                ticksCount,
+                alertData,
+                alertsCount,
+            ] = await Promise.all([
+                getSymbols(),
+                getTicks(),
+                getTicksCount(),
+                getAlerts(),
+                getAlertsCount(),
+            ]);
 
             setSymbols(Array.isArray(symbolData) ? symbolData : []);
             setTicks(Array.isArray(tickData) ? tickData : []);
+            setTicksTotal(ticksCount);
             setAlerts(Array.isArray(alertData) ? alertData : []);
+            setAlertsTotal(alertsCount);
 
         }
 
@@ -86,7 +106,7 @@ export default function Dashboard() {
 
                         <MetricCard
                             title="Ticks Ingested"
-                            value={ticks.length}
+                            value={ticksTotal}
                             unit=""
                             color="bg-purple-500/20"
                             icon={<Database className="text-purple-400" />}
@@ -94,7 +114,7 @@ export default function Dashboard() {
 
                         <MetricCard
                             title="Alerts"
-                            value={alerts.length}
+                            value={alertsTotal}
                             unit=""
                             color="bg-yellow-500/20"
                             icon={<Bell className="text-yellow-400" />}

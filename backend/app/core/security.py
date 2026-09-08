@@ -6,10 +6,11 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.database.session import get_db
 from app.services.user_service import UserService
 
-SECRET_KEY = "change_this_to_a_long_random_secret_key"
+SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

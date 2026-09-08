@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database.models import Tick
@@ -31,20 +32,29 @@ class TickService:
 
         return tick
 
-    def get_all_ticks(self):
+    def get_all_ticks(self, limit: int = 50):
+        # Ingestion writes real ticks continuously (crypto trades 24/7),
+        # so this table only grows -- always cap, never return the whole
+        # thing. Use count_ticks() for a total instead of len(get_all_ticks()).
         return (
             self.db.query(Tick)
             .order_by(Tick.traded_at.desc())
+            .limit(limit)
             .all()
         )
+
+    def count_ticks(self) -> int:
+        return self.db.query(func.count(Tick.id)).scalar()
 
     def get_ticks_for_symbol(
         self,
         symbol_id: int,
+        limit: int = 200,
     ):
         return (
             self.db.query(Tick)
             .filter(Tick.symbol_id == symbol_id)
             .order_by(Tick.traded_at.desc())
+            .limit(limit)
             .all()
         )

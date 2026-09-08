@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
@@ -36,16 +36,29 @@ def create_tick(
 
 
 @router.get(
-    "",
-    response_model=list[TickResponse],
+    "/count",
 )
-def get_all_ticks(
+def get_tick_count(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     service = TickService(db)
 
-    return service.get_all_ticks()
+    return {"count": service.count_ticks()}
+
+
+@router.get(
+    "",
+    response_model=list[TickResponse],
+)
+def get_all_ticks(
+    limit: int = Query(50, ge=1, le=500),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = TickService(db)
+
+    return service.get_all_ticks(limit=limit)
 
 
 @router.get(
@@ -54,11 +67,13 @@ def get_all_ticks(
 )
 def get_symbol_ticks(
     symbol_id: int,
+    limit: int = Query(200, ge=1, le=1000),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     service = TickService(db)
 
     return service.get_ticks_for_symbol(
-        symbol_id
+        symbol_id,
+        limit=limit,
     )

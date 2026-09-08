@@ -1,15 +1,10 @@
-import os
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse",
-)
+from app.core.config import settings
 
 engine = create_engine(
-    DATABASE_URL,
+    settings.DATABASE_URL,
     echo=True,
 )
 

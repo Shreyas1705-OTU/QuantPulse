@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
@@ -13,16 +13,29 @@ router = APIRouter(
 
 
 @router.get(
-    "",
-    response_model=list[AlertResponse],
+    "/count",
 )
-def get_all_alerts(
+def get_alert_count(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     service = AlertService(db)
 
-    return service.get_all_alerts()
+    return {"count": service.count_alerts()}
+
+
+@router.get(
+    "",
+    response_model=list[AlertResponse],
+)
+def get_all_alerts(
+    limit: int = Query(50, ge=1, le=500),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = AlertService(db)
+
+    return service.get_all_alerts(limit=limit)
 
 
 @router.get(
@@ -31,11 +44,13 @@ def get_all_alerts(
 )
 def get_symbol_alerts(
     symbol_id: int,
+    limit: int = Query(100, ge=1, le=1000),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     service = AlertService(db)
 
     return service.get_alerts_for_symbol(
-        symbol_id
+        symbol_id,
+        limit=limit,
     )
