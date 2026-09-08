@@ -1,8 +1,11 @@
 name: Build and Push to ACR
 
-# Builds the backend and frontend images (linux/arm64, matching the
-# aks-quantpulse node pool -- see overlays/aks and scripts/deploy-aks.sh)
-# and pushes them to ACR on every push to main that touches app code.
+# Runs the test suite first, then builds the backend/frontend/ingestion/ai
+# images (linux/arm64, matching the aks-quantpulse node pool -- see
+# overlays/aks and scripts/deploy-aks.sh) and pushes them to ACR on every
+# push to main that touches app code. build-and-push only runs if test
+# passes -- a broken anomaly-detection/market-hours/service-layer/AI-job
+# change never reaches ACR.
 #
 # This workflow never touches the AKS cluster. Deploying a newly-pushed
 # image is a separate, manual step (scripts/deploy-aks.sh), by design --
@@ -24,7 +27,53 @@ env:
   ACR_LOGIN_SERVER: quantpulseacrsd.azurecr.io
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: quantpulse
+          POSTGRES_PASSWORD: quantpulse123
+          POSTGRES_DB: quantpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r ingestion/requirements.txt
+          pip install -r ai/requirements.txt
+          pip install pytest
+
+      - name: Run Alembic migrations (build the schema tests run against)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://quantpulse:quantpulse123@localhost:5432/quantpulse
+        run: alembic upgrade head
+
+      - name: Run test suite
+        env:
+          TEST_DATABASE_URL: postgresql://quantpulse:quantpulse123@localhost:5432/quantpulse
+        run: pytest backend/tests/ ingestion/tests/ ai/tests/ -v
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:

@@ -26,6 +26,7 @@ It is designed as a portfolio-ready full-stack project that demonstrates:
 - [Deployment Scripts](#deployment-scripts)
 - [Access URLs and Credentials](#access-urls-and-credentials)
 - [Monitoring and Observability](#monitoring-and-observability)
+- [Automated Test Suite](#automated-test-suite)
 - [Cold-Start Validation and Testing](#cold-start-validation-and-testing)
 - [Why This Project Is Cloud-Native](#why-this-project-is-cloud-native)
 - [Troubleshooting](#troubleshooting)
@@ -376,6 +377,36 @@ The Grafana dashboard displays:
 
 <img width="5179" height="780" alt="Monitering data flow" src="https://github.com/user-attachments/assets/a5748820-1461-4244-a914-c92987b172db" />
 
+
+---
+
+## Automated Test Suite
+
+Real Postgres, not sqlite or mocks -- `backend/tests/`, `ingestion/tests/`, and `ai/tests/` each run against an actual Postgres database, since several of the things under test (Postgres's `DISTINCT ON`, real transaction/rollback behavior) don't exist or behave differently against a fake one. Runs in CI (`.github/workflows/build-push-acr.yml`) on every push to `main` that touches app code, gating the image build -- `build-and-push` only runs if `test` passes.
+
+**What's covered:**
+- `ingestion/tests/test_anomaly_detector.py` -- the rolling z-score anomaly detection algorithm itself: threshold classification, cooldown suppression (per-symbol, per-kind), the display-value cap, rolling-window eviction.
+- `backend/tests/test_market_hours.py` -- `is_market_open()`'s NYSE holiday calendar and DST handling, checked against real calendar facts (actual 2026/2027 holiday dates, actual DST transition dates), not against the module's own internal helpers.
+- `backend/tests/test_services.py` -- the service layer, including `TickService.get_latest_tick_per_symbol()`'s `DISTINCT ON` tiebreaking.
+- `ai/tests/test_explainer.py`, `ai/tests/test_symbol_summary.py` -- the two AI CronJob scripts, with the LLM client always monkeypatched (no real Azure OpenAI calls in tests) but every DB read/write real, including the resilience guarantee that one alert's/symbol's failed write or LLM call doesn't sink the rest of the batch.
+
+**Running locally:**
+
+```bash
+# A throwaway Postgres for tests -- separate from your dev/deploy one.
+docker run -d --name quantpulse-test-pg \
+  -e POSTGRES_USER=quantpulse -e POSTGRES_PASSWORD=quantpulse123 -e POSTGRES_DB=quantpulse \
+  -p 5433:5432 postgres:16-alpine
+
+cd backend
+DATABASE_URL="postgresql://quantpulse:quantpulse123@localhost:5433/quantpulse" alembic upgrade head
+cd ..
+
+pip install -r backend/requirements.txt -r ingestion/requirements.txt -r ai/requirements.txt pytest
+
+TEST_DATABASE_URL="postgresql://quantpulse:quantpulse123@localhost:5433/quantpulse" \
+  pytest backend/tests/ ingestion/tests/ ai/tests/ -v
+```
 
 ---
 
