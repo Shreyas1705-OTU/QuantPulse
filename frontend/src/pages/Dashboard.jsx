@@ -232,7 +232,7 @@ export default function Dashboard() {
 
                     <div className="mb-8">
 
-                        <SectionCard title="AI Symbol Insights">
+                        <SectionCard title="Current Insights Powered by OpenAI">
 
                             <SymbolInsights
                                 symbols={symbols}
