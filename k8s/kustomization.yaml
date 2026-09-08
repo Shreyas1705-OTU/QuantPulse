@@ -28,6 +28,7 @@ resources:
 
   - ai/explainer-cronjob.yaml
   - ai/daily-summary-cronjob.yaml
+  - ai/symbol-summary-cronjob.yaml
 
   - monitoring/prometheus/configmap.yaml
   - monitoring/prometheus/deployment.yaml
