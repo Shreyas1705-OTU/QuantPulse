@@ -9,21 +9,28 @@ resources:
   - ../../k8s
 
 # Rewrites `image: quantpulse-backend:latest` / `quantpulse-frontend:latest`
-# to the ACR-hosted images built via `docker buildx` + pushed for linux/arm64
-# (see quantpulseacrsd.azurecr.io). Matches by image *name*, so the base
-# files never need to know about ACR.
+# to the ACR-hosted images built via `docker buildx` + pushed for
+# linux/arm64. __ACR_LOGIN_SERVER__ is a placeholder, not a real host --
+# kustomize has no templating, so deploy-aks.sh substitutes it for the
+# real registry (from $ACR_NAME, which defaults to this project's own but
+# is overridable) at render time, via
+# `kubectl kustomize | sed | kubectl apply -f -` rather than
+# `kubectl apply -k` directly. This is what makes the same overlay work
+# against anyone's ACR, not just this project's own -- see
+# scripts/env-azure.example.sh. Matches by image *name*, so the base
+# files never need to know about ACR either way.
 images:
   - name: quantpulse-backend
-    newName: quantpulseacrsd.azurecr.io/quantpulse-backend
+    newName: __ACR_LOGIN_SERVER__/quantpulse-backend
     newTag: latest
   - name: quantpulse-frontend
-    newName: quantpulseacrsd.azurecr.io/quantpulse-frontend
+    newName: __ACR_LOGIN_SERVER__/quantpulse-frontend
     newTag: latest
   - name: quantpulse-ingestion
-    newName: quantpulseacrsd.azurecr.io/quantpulse-ingestion
+    newName: __ACR_LOGIN_SERVER__/quantpulse-ingestion
     newTag: latest
   - name: quantpulse-ai
-    newName: quantpulseacrsd.azurecr.io/quantpulse-ai
+    newName: __ACR_LOGIN_SERVER__/quantpulse-ai
     newTag: latest
 
 # Never on Kind means "only use what's already loaded into the node" — the

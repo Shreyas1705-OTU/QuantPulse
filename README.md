@@ -294,6 +294,34 @@ Starts port forwarding for:
 - Prometheus on `localhost:9090`
 - Grafana on `localhost:3000`
 
+### `deploy-aks.sh`
+Same idea as `deploy-kind.sh`, but for a real Azure Kubernetes Service
+cluster instead of a local Kind one: builds + pushes all four images to
+Azure Container Registry (`linux/arm64`), applies the `overlays/aks`
+Kustomize overlay, provisions the `finnhub-secret` and
+`azure-openai-secret` Kubernetes secrets from environment variables, runs
+migrations, and seeds the database.
+
+It defaults to this project's own Azure resource names, but every name is
+overridable — anyone cloning this repo can point it at their own
+subscription instead of editing the script:
+
+```bash
+cp scripts/env-azure.example.sh scripts/.env.azure
+# edit scripts/.env.azure: fill in your Finnhub/Azure OpenAI keys, and
+# uncomment + set AZURE_RESOURCE_GROUP / AZURE_AKS_CLUSTER / AZURE_ACR_NAME
+# if you're deploying to your own Azure resources rather than the
+# author's
+source scripts/.env.azure
+./scripts/deploy-aks.sh
+```
+
+`scripts/.env.azure` is gitignored (matches the existing `.env.*` rule) —
+your real keys never get committed. Requires an existing AKS cluster and
+ACR (`az aks create` / `az acr create`) and `az aks start` run first if
+the cluster is stopped; this script deliberately never starts or stops
+the cluster itself, to keep that a conscious, cost-aware step.
+
 ---
 
 ## Access URLs and Credentials

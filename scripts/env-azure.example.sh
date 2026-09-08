@@ -23,3 +23,14 @@ export FINNHUB_API_KEY='your-finnhub-key-here'
 export AZURE_OPENAI_ENDPOINT='https://your-resource.openai.azure.com/openai/v1'
 export AZURE_OPENAI_API_KEY='your-azure-openai-key-here'
 export AZURE_OPENAI_DEPLOYMENT='your-deployment-name-here'
+
+# Optional -- only needed if you're deploying to YOUR OWN Azure resources
+# rather than this project author's. deploy-aks.sh defaults all three to
+# the author's own resource names if these aren't set, so leave this
+# section commented out entirely if you're not the one paying the Azure
+# bill. ACR names must be globally unique across all of Azure, so a fork
+# genuinely cannot reuse the author's ACR_NAME even if it wanted to.
+#
+# export AZURE_RESOURCE_GROUP='your-resource-group'
+# export AZURE_AKS_CLUSTER='your-aks-cluster-name'
+# export AZURE_ACR_NAME='your-acr-name'

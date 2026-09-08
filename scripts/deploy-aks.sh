@@ -2,9 +2,18 @@
 
 set -e
 
-RESOURCE_GROUP="rg-quantpulse"
-AKS_CLUSTER="aks-quantpulse"
-ACR_NAME="quantpulseacrsd"
+# All three default to this project's own resources but are overridable,
+# so anyone cloning this repo can point the same script at their own
+# Azure subscription instead of editing the script itself. See
+# scripts/env-azure.example.sh -- copy it to scripts/.env.azure (already
+# gitignored), fill in AZURE_RESOURCE_GROUP/AZURE_AKS_CLUSTER/
+# AZURE_ACR_NAME with your own resource names, `source` it, then run
+# this script. ACR names must be globally unique across all of Azure, so
+# a fork genuinely cannot reuse this project's own ACR_NAME even if it
+# wanted to.
+RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-quantpulse}"
+AKS_CLUSTER="${AZURE_AKS_CLUSTER:-aks-quantpulse}"
+ACR_NAME="${AZURE_ACR_NAME:-quantpulseacrsd}"
 ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 
 echo "========================================"
@@ -59,7 +68,13 @@ docker buildx build \
 echo ""
 echo "[7/9] Applying Kubernetes manifests (namespace, config, postgres,"
 echo "backend, frontend, ingestion, ai jobs, monitoring, ingress) via the aks overlay..."
-kubectl apply -k overlays/aks
+# Not a plain `kubectl apply -k overlays/aks` -- the overlay's images
+# section holds the literal placeholder __ACR_LOGIN_SERVER__ (kustomize
+# has no templating of its own), so the real registry is substituted in
+# after rendering, right before it's applied. This is what lets the same
+# overlay target anyone's ACR via $ACR_NAME instead of only this
+# project's own.
+kubectl kustomize overlays/aks | sed "s|__ACR_LOGIN_SERVER__|${ACR_LOGIN_SERVER}|g" | kubectl apply -f -
 
 # The Finnhub API key is a real external credential, unlike the demo
 # secrets in k8s/secret.yaml -- never committed to git. Create it here
