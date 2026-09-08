@@ -35,8 +35,20 @@ images:
 
 # Never on Kind means "only use what's already loaded into the node" — the
 # right default for a from-source local dev loop. On AKS there's no local
-# image to reuse, and IfNotPresent avoids a wasted pull if the node already
-# cached that exact tag from a previous deploy.
+# image to reuse, so every workload here gets Always, not IfNotPresent --
+# newTag above is the mutable `latest` tag, and IfNotPresent only checks
+# whether *some* image already exists on the node under that name:tag; it
+# never compares against what the registry currently holds. That bit
+# real: a redeploy's freshly-pushed backend image (new migration file
+# included) got pushed to ACR fine, `kubectl rollout restart` even forced
+# a brand new pod -- but the node still had an OLDER digest cached under
+# `quantpulse-backend:latest` from an earlier deploy, so the new pod ran
+# with stale code anyway (confirmed by comparing the running pod's
+# imageID against ACR's actual latest digest). rollout restart forces a
+# new POD; it does nothing about which image that pod ends up running.
+# Always is the only pull policy that's actually correct for a mutable
+# tag redeployed to a long-lived node -- the extra registry check per
+# pod start is negligible at this project's scale.
 patches:
   - target:
       kind: Deployment
@@ -44,39 +56,39 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
   - target:
       kind: Deployment
       name: frontend
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
   - target:
       kind: Deployment
       name: ingestion
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
   - target:
       kind: CronJob
       name: ai-explainer
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
   - target:
       kind: CronJob
       name: ai-daily-summary
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
   - target:
       kind: CronJob
       name: ai-symbol-summary
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
