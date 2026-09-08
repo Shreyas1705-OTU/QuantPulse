@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: ai-explainer
+  namespace: quantpulse
+
+spec:
+  # Finds unexplained alerts and fills them in -- frequent and cheap
+  # (bounded to 20 alerts/run, see ai/explainer.py's BATCH_LIMIT).
+  schedule: "*/2 * * * *"
+
+  # A run that's still going when the next one is due should be skipped,
+  # not stacked -- explainer.py is idempotent either way (it only ever
+  # picks up rows still NULL), but there's no reason to run two at once.
+  concurrencyPolicy: Forbid
+
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+
+      template:
+        spec:
+          restartPolicy: Never
+
+          containers:
+            - name: ai-explainer
+
+              image: quantpulse-ai:latest
+              imagePullPolicy: Never
+
+              command: ["python", "explainer.py"]
+
+              env:
+                - name: DATABASE_URL
+                  value: "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse"
+
+                - name: AZURE_OPENAI_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_ENDPOINT
+
+                - name: AZURE_OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_API_KEY
+
+                - name: AZURE_OPENAI_DEPLOYMENT
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_DEPLOYMENT

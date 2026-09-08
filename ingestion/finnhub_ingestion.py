@@ -9,7 +9,9 @@ Postgres via SQLAlchemy Core (reflecting the existing tables rather than
 duplicating column definitions), not through the backend's API.
 
 Exposes its own /metrics endpoint on :8001 -- this is the real place
-"ticks ingested" belongs, since the backend never touches these writes.
+"ticks ingested" (and, now, "alerts generated") belongs, since the backend
+never touches these writes -- see anomaly_detector.py for the rolling
+z-score check run on every tick.
 
 MUST run as a single replica -- see k8s/ingestion/deployment.yaml.
 """
@@ -23,6 +25,8 @@ import websocket
 from prometheus_client import Counter, start_http_server
 from sqlalchemy import create_engine, MetaData, select
 
+from anomaly_detector import AnomalyDetector
+
 DATABASE_URL = os.environ["DATABASE_URL"]
 FINNHUB_API_KEY = os.environ["FINNHUB_API_KEY"]
 
@@ -31,12 +35,22 @@ TICKS_INGESTED_TOTAL = Counter(
     "Total market ticks ingested from Finnhub",
 )
 
+# Moved here from backend/app/core/metrics.py -- the backend has no code
+# path that ever creates an Alert (no POST /alerts route), so that counter
+# could never fire. Real alerts are only ever created here, by the
+# anomaly detector, so this is the real place for the metric.
+ALERTS_TOTAL = Counter(
+    "quantpulse_alerts_total",
+    "Total alerts generated",
+)
+
 engine = create_engine(DATABASE_URL)
+detector = AnomalyDetector()
 
 
 def wait_for_schema(max_retries=30, retry_delay=5):
     """
-    Reflect the symbols/ticks tables, retrying until they exist.
+    Reflect the symbols/ticks/alerts tables, retrying until they exist.
 
     This service can start before Alembic has created the schema: on a
     completely fresh cluster, every Deployment (including this one) gets
@@ -50,18 +64,22 @@ def wait_for_schema(max_retries=30, retry_delay=5):
     for attempt in range(1, max_retries + 1):
         try:
             metadata = MetaData()
-            metadata.reflect(bind=engine, only=["symbols", "ticks"])
-            return metadata.tables["symbols"], metadata.tables["ticks"]
+            metadata.reflect(bind=engine, only=["symbols", "ticks", "alerts"])
+            return (
+                metadata.tables["symbols"],
+                metadata.tables["ticks"],
+                metadata.tables["alerts"],
+            )
         except Exception as e:
             print(f"[{attempt}/{max_retries}] Schema not ready yet ({e}) -- retrying in {retry_delay}s...")
             time.sleep(retry_delay)
 
     raise RuntimeError(
-        f"Gave up after {max_retries} attempts -- symbols/ticks tables never appeared."
+        f"Gave up after {max_retries} attempts -- symbols/ticks/alerts tables never appeared."
     )
 
 
-symbols_table, ticks_table = wait_for_schema()
+symbols_table, ticks_table, alerts_table = wait_for_schema()
 
 
 def load_symbol_map(max_retries=30, retry_delay=5):
@@ -103,6 +121,20 @@ def insert_tick(symbol_id, price, volume, traded_at):
         )
 
 
+def insert_alert(symbol_id, message, severity):
+    # created_at has a server_default (see app/database/models.py), so it's
+    # not set here -- same pattern as insert_tick leaving created_at to the
+    # database.
+    with engine.begin() as conn:
+        conn.execute(
+            alerts_table.insert().values(
+                symbol_id=symbol_id,
+                message=message,
+                severity=severity,
+            )
+        )
+
+
 def on_message(ws, message):
     payload = json.loads(message)
 
@@ -133,6 +165,13 @@ def on_message(ws, message):
         TICKS_INGESTED_TOTAL.inc()
 
         print(f"{ticker}: {trade['p']} x {trade['v']} @ {traded_at}")
+
+        for severity, message in detector.check_tick(
+            ticker, trade["p"], trade["v"], traded_at
+        ):
+            insert_alert(symbol_id, message, severity)
+            ALERTS_TOTAL.inc()
+            print(f"  [{severity}] {ticker}: {message}")
 
 
 def on_error(ws, error):

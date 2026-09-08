@@ -7,6 +7,7 @@ from app.routers.auth import router as auth_router
 from app.routers.symbols import router as symbol_router
 from app.routers.ticks import router as tick_router
 from app.routers.alerts import router as alert_router
+from app.routers.summary import router as summary_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -61,6 +62,14 @@ app.include_router(
 # -----------------------------
 app.include_router(
     alert_router,
+    prefix="/api/v1",
+)
+
+# -----------------------------
+# Daily Summary APIs
+# -----------------------------
+app.include_router(
+    summary_router,
     prefix="/api/v1",
 )
 

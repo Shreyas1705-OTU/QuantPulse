@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: ai-daily-summary
+  namespace: quantpulse
+
+spec:
+  # 22:00 UTC -- after the NYSE 4pm ET close (20:00 UTC EDT / 21:00 UTC
+  # EST), so the day's equity alerts are all in before this runs. Forex
+  # and crypto trade outside those hours too, but "end of the US trading
+  # day" is the natural cutoff for a daily digest here.
+  schedule: "0 22 * * *"
+
+  # ai/daily_summary.py is idempotent (summary_date is unique, and it
+  # checks for an existing row before ever calling the LLM), but there's
+  # still no reason to ever run two of these at once.
+  concurrencyPolicy: Forbid
+
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+
+      template:
+        spec:
+          restartPolicy: Never
+
+          containers:
+            - name: ai-daily-summary
+
+              image: quantpulse-ai:latest
+              imagePullPolicy: Never
+
+              command: ["python", "daily_summary.py"]
+
+              env:
+                - name: DATABASE_URL
+                  value: "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse"
+
+                - name: AZURE_OPENAI_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_ENDPOINT
+
+                - name: AZURE_OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_API_KEY
+
+                - name: AZURE_OPENAI_DEPLOYMENT
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-openai-secret
+                      key: AZURE_OPENAI_DEPLOYMENT

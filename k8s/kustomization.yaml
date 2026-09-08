@@ -26,6 +26,9 @@ resources:
   - ingestion/deployment.yaml
   - ingestion/service.yaml
 
+  - ai/explainer-cronjob.yaml
+  - ai/daily-summary-cronjob.yaml
+
   - monitoring/prometheus/configmap.yaml
   - monitoring/prometheus/deployment.yaml
   - monitoring/prometheus/service.yaml

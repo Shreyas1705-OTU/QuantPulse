@@ -16,16 +16,16 @@ echo "cluster was stopped (this script does not start/stop the cluster --"
 echo "that stays a deliberate manual step to control cost)."
 
 echo ""
-echo "[1/8] Pointing kubectl at aks-quantpulse (not Kind)..."
+echo "[1/9] Pointing kubectl at aks-quantpulse (not Kind)..."
 az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER" --overwrite-existing
 kubectl config use-context "$AKS_CLUSTER"
 
 echo ""
-echo "[2/8] Logging Docker into ACR..."
+echo "[2/9] Logging Docker into ACR..."
 az acr login --name "$ACR_NAME"
 
 echo ""
-echo "[3/8] Building + pushing backend image (linux/arm64)..."
+echo "[3/9] Building + pushing backend image (linux/arm64)..."
 docker buildx build \
   --platform linux/arm64 \
   -t "${ACR_LOGIN_SERVER}/quantpulse-backend:latest" \
@@ -33,7 +33,7 @@ docker buildx build \
   ./backend
 
 echo ""
-echo "[4/8] Building + pushing frontend image (linux/arm64)..."
+echo "[4/9] Building + pushing frontend image (linux/arm64)..."
 docker buildx build \
   --platform linux/arm64 \
   -t "${ACR_LOGIN_SERVER}/quantpulse-frontend:latest" \
@@ -41,7 +41,7 @@ docker buildx build \
   ./frontend
 
 echo ""
-echo "[5/8] Building + pushing ingestion image (linux/arm64)..."
+echo "[5/9] Building + pushing ingestion image (linux/arm64)..."
 docker buildx build \
   --platform linux/arm64 \
   -t "${ACR_LOGIN_SERVER}/quantpulse-ingestion:latest" \
@@ -49,8 +49,16 @@ docker buildx build \
   ./ingestion
 
 echo ""
-echo "[6/8] Applying Kubernetes manifests (namespace, config, postgres,"
-echo "backend, frontend, ingestion, monitoring, ingress) via the aks overlay..."
+echo "[6/9] Building + pushing ai image (linux/arm64)..."
+docker buildx build \
+  --platform linux/arm64 \
+  -t "${ACR_LOGIN_SERVER}/quantpulse-ai:latest" \
+  --push \
+  ./ai
+
+echo ""
+echo "[7/9] Applying Kubernetes manifests (namespace, config, postgres,"
+echo "backend, frontend, ingestion, ai jobs, monitoring, ingress) via the aks overlay..."
 kubectl apply -k overlays/aks
 
 # The Finnhub API key is a real external credential, unlike the demo
@@ -74,9 +82,32 @@ else
     --from-literal=FINNHUB_API_KEY="$FINNHUB_API_KEY"
 fi
 
+# Azure OpenAI is enrichment, not core functionality (see ai/) -- unlike
+# Finnhub above, a missing key does NOT fail the deploy. The two ai
+# CronJobs just fail at their next scheduled trigger until this secret
+# exists; everything else (ticks, anomaly detection, the dashboard) works
+# fine without it.
+if kubectl get secret azure-openai-secret -n quantpulse >/dev/null 2>&1; then
+  echo "azure-openai-secret already exists, leaving it as-is."
+elif [ -n "$AZURE_OPENAI_ENDPOINT" ] && [ -n "$AZURE_OPENAI_API_KEY" ] && [ -n "$AZURE_OPENAI_DEPLOYMENT" ]; then
+  kubectl create secret generic azure-openai-secret \
+    --namespace quantpulse \
+    --from-literal=AZURE_OPENAI_ENDPOINT="$AZURE_OPENAI_ENDPOINT" \
+    --from-literal=AZURE_OPENAI_API_KEY="$AZURE_OPENAI_API_KEY" \
+    --from-literal=AZURE_OPENAI_DEPLOYMENT="$AZURE_OPENAI_DEPLOYMENT"
+else
+  echo ""
+  echo "WARNING: azure-openai-secret does not exist and AZURE_OPENAI_ENDPOINT/"
+  echo "AZURE_OPENAI_API_KEY/AZURE_OPENAI_DEPLOYMENT are not all set. The"
+  echo "ai-explainer and ai-daily-summary CronJobs will fail until it's"
+  echo "created -- everything else deploys and works normally."
+  echo ""
+fi
+
 # Same reasoning as deploy-kind.sh: the image tag here is always ":latest",
 # so a freshly-pushed image with new code looks "unchanged" to kubectl and
-# won't trigger a pod restart on its own. Force one every run.
+# won't trigger a pod restart on its own. Force one every run. (Not needed
+# for the ai CronJobs -- see deploy-kind.sh comment.)
 kubectl rollout restart deployment/backend -n quantpulse
 kubectl rollout restart deployment/frontend -n quantpulse
 kubectl rollout restart deployment/ingestion -n quantpulse
@@ -91,7 +122,7 @@ kubectl rollout status deployment/prometheus -n quantpulse
 kubectl rollout status deployment/grafana -n quantpulse
 
 echo ""
-echo "[7/8] Waiting for PostgreSQL..."
+echo "[8/9] Waiting for PostgreSQL..."
 
 kubectl wait \
   --for=condition=Ready \
@@ -108,7 +139,7 @@ echo "Seeding database..."
 kubectl exec deployment/backend -n quantpulse -- python -m app.database.seed
 
 echo ""
-echo "[8/8] Done."
+echo "[9/9] Done."
 echo ""
 echo "========================================"
 echo " QuantPulse deployed to AKS successfully!"

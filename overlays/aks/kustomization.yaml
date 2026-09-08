@@ -22,6 +22,9 @@ images:
   - name: quantpulse-ingestion
     newName: quantpulseacrsd.azurecr.io/quantpulse-ingestion
     newTag: latest
+  - name: quantpulse-ai
+    newName: quantpulseacrsd.azurecr.io/quantpulse-ai
+    newTag: latest
 
 # Never on Kind means "only use what's already loaded into the node" — the
 # right default for a from-source local dev loop. On AKS there's no local
@@ -48,4 +51,18 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: CronJob
+      name: ai-explainer
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: CronJob
+      name: ai-daily-summary
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
         value: IfNotPresent

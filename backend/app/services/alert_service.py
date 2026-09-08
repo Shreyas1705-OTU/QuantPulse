@@ -1,7 +1,6 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.metrics import ALERTS_TOTAL
 from app.database.models import Alert
 
 
@@ -25,8 +24,6 @@ class AlertService:
         self.db.add(alert)
         self.db.commit()
         self.db.refresh(alert)
-
-        ALERTS_TOTAL.inc()
 
         return alert
 
