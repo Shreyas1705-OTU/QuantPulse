@@ -1,4 +1,4 @@
-import { ResponsiveContainer, LineChart, Line } from "recharts";
+import { ResponsiveContainer, LineChart, Line, YAxis } from "recharts";
 import { CheckCircle, XCircle, Clock } from "lucide-react";
 
 // Change is computed over whatever window of ticks was fetched (see
@@ -66,6 +66,15 @@ export default function PriceTrendCard({ symbol, ticks }) {
                     <div className="h-[34px] -mx-1">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={ticks} margin={{ top: 2, right: 4, bottom: 2, left: 4 }}>
+                                {/* recharts defaults an unspecified YAxis to
+                                    domain [0, auto] -- every price plots
+                                    against a scale starting at zero, so a
+                                    real $1-2 move on a ~$300 stock is
+                                    invisible (it's <1% of the plotted
+                                    range). Fitting the domain tightly to
+                                    the actual min/max is what makes small,
+                                    real moves show up at all. */}
+                                <YAxis domain={["dataMin", "dataMax"]} hide />
                                 <Line
                                     type="monotone"
                                     dataKey="price"
