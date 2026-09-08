@@ -41,6 +41,16 @@ VOLUME_Z_HIGH = 6.0
 # different (e.g. exponential backoff) suppression scheme.
 COOLDOWN_SECONDS = 300
 
+# Caps the z-score shown in the message/fed to the LLM -- NOT the z used
+# for severity, which stays uncapped. An extremely tight window (e.g.
+# 20+ near-identical BTC prices) can make an entirely ordinary tick
+# compute to a z in the hundreds or thousands (observed live:
+# z=-1210.57) -- mathematically correct, but meaningless as a number and
+# actively confusing in a generated explanation. Severity already
+# saturates at HIGH well below this cap, so capping the *display* value
+# changes nothing about which alerts fire.
+Z_DISPLAY_CAP = 50
+
 
 class _SymbolWindow:
     def __init__(self):
@@ -113,5 +123,6 @@ class AnomalyDetector:
 
         last_alert_at[kind] = now
 
-        message = f"{label} anomaly: {value:.4f} vs avg {mean:.4f} (z={z:.2f})"
+        z_display = max(-Z_DISPLAY_CAP, min(Z_DISPLAY_CAP, z))
+        message = f"{label} anomaly: {value:.4f} vs avg {mean:.4f} (z={z_display:.2f})"
         return severity, message
