@@ -20,6 +20,13 @@ export async function getLatestTicks() {
     return response.data;
 }
 
+export async function getSymbolTicks(symbolId, limit = 30) {
+    const response = await api.get(`/ticks/symbol/${symbolId}`, {
+        params: { limit },
+    });
+    return response.data;
+}
+
 export async function getAlerts() {
     const response = await api.get("/alerts");
     return response.data;

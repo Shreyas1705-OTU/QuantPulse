@@ -3,20 +3,19 @@ export default function MetricCard({
     value,
     unit,
     icon,
-    color,
 }) {
     return (
-        <div className="bg-slate-800 rounded-xl shadow-lg p-6 border border-slate-700 hover:border-cyan-500 transition-all">
+        <div className="bg-surface rounded-2xl border border-line p-6">
 
             <div className="flex justify-between items-center">
 
                 <div>
 
-                    <p className="text-slate-400 text-sm">
+                    <p className="text-muted text-sm">
                         {title}
                     </p>
 
-                    <h2 className="text-3xl font-bold mt-2 text-white">
+                    <h2 className="font-display text-3xl font-bold mt-2 text-ink">
                         {value}
                         <span className="text-lg ml-1">
                             {unit}
@@ -25,9 +24,7 @@ export default function MetricCard({
 
                 </div>
 
-                <div
-                    className={`p-3 rounded-lg ${color}`}
-                >
+                <div className="p-3 rounded-xl bg-accent-soft">
                     {icon}
                 </div>
 

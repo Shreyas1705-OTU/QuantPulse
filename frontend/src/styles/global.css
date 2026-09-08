@@ -1,5 +1,39 @@
 @import "tailwindcss";
 
+/*
+ * QuantPulse design tokens -- dark editorial: near-black warm canvas,
+ * one confident coral accent, restrained grayscale everywhere else
+ * rather than a different color per state. Space Grotesk for headlines
+ * (bold, geometric, confident), Inter for body/data (stays readable at
+ * small sizes in tables).
+ *
+ * Tailwind v4 generates utilities from these automatically:
+ * bg-canvas, bg-surface, text-ink, text-muted, border-line,
+ * bg-accent, text-accent, font-display, font-sans, etc.
+ */
+@theme {
+    --color-canvas: #121110;
+    --color-surface: #1c1a18;
+    --color-surface-raised: #242220;
+    --color-line: #322e2a;
+
+    --color-ink: #f5f1ea;
+    --color-muted: #a69a8c;
+    --color-faint: #6f6559;
+
+    --color-accent: #e2542d;
+    --color-accent-hover: #c2431f;
+    --color-accent-soft: #e2542d22;
+
+    --color-good: #8fae74;
+    --color-bad: #c24a38;
+    --color-warn: #d9a441;
+    --color-warn-soft: #3a2e1c;
+
+    --font-display: "Space Grotesk", "Inter", sans-serif;
+    --font-sans: "Inter", sans-serif;
+}
+
 html,
 body,
 #root {
@@ -7,7 +41,7 @@ body,
     height: 100%;
     margin: 0;
     padding: 0;
-    background: #0f172a;
-    color: white;
-    font-family: Inter, Arial, sans-serif;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
 }

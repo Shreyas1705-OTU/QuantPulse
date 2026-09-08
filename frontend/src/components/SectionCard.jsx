@@ -3,9 +3,9 @@ export default function SectionCard({
     children,
 }) {
     return (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-lg p-6">
+        <div className="bg-surface rounded-2xl border border-line p-6">
 
-            <h2 className="text-xl font-semibold text-white mb-5">
+            <h2 className="font-display text-lg font-bold text-ink mb-4">
                 {title}
             </h2>
 

@@ -11,14 +11,13 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import MetricCard from "../components/MetricCard";
 import SectionCard from "../components/SectionCard";
-
-import SymbolStatus from "../components/SymbolStatus";
+import PriceTrendCard from "../components/PriceTrendCard";
 
 import {
     getSymbols,
     getTicks,
     getTicksCount,
-    getLatestTicks,
+    getSymbolTicks,
     getAlerts,
     getAlertsCount,
     getTodaySummary,
@@ -29,7 +28,7 @@ export default function Dashboard() {
     const [symbols, setSymbols] = useState([]);
     const [ticks, setTicks] = useState([]);
     const [ticksTotal, setTicksTotal] = useState(0);
-    const [latestTicks, setLatestTicks] = useState({});
+    const [priceTrends, setPriceTrends] = useState({});
     const [alerts, setAlerts] = useState([]);
     const [alertsTotal, setAlertsTotal] = useState(0);
     const [summary, setSummary] = useState(null);
@@ -56,7 +55,6 @@ export default function Dashboard() {
                 symbolData,
                 tickData,
                 ticksCount,
-                latestTickData,
                 alertData,
                 alertsCount,
                 summaryData,
@@ -64,27 +62,36 @@ export default function Dashboard() {
                 getSymbols(),
                 getTicks(),
                 getTicksCount(),
-                getLatestTicks(),
                 getAlerts(),
                 getAlertsCount(),
                 getTodaySummary(),
             ]);
 
-            setSymbols(Array.isArray(symbolData) ? symbolData : []);
+            const symbolsArr = Array.isArray(symbolData) ? symbolData : [];
+
+            setSymbols(symbolsArr);
             setTicks(Array.isArray(tickData) ? tickData : []);
             setTicksTotal(ticksCount);
-
-            const latestBySymbol = {};
-            if (Array.isArray(latestTickData)) {
-                for (const tick of latestTickData) {
-                    latestBySymbol[tick.symbol_id] = tick;
-                }
-            }
-            setLatestTicks(latestBySymbol);
-
             setAlerts(Array.isArray(alertData) ? alertData : []);
             setAlertsTotal(alertsCount);
             setSummary(summaryData);
+
+            // Each symbol's own recent tick history, for its Price Trends
+            // card -- a symbol with no real ticks yet (e.g. an equity
+            // before this session's first Finnhub trade) just gets an
+            // empty array, which PriceTrendCard renders as "No data yet"
+            // rather than a fabricated chart.
+            const trendResults = await Promise.all(
+                symbolsArr.map((s) => getSymbolTicks(s.id, 30).catch(() => []))
+            );
+
+            const trendsBySymbol = {};
+            symbolsArr.forEach((s, i) => {
+                // API returns newest-first; a chart reads left-to-right
+                // chronologically.
+                trendsBySymbol[s.id] = trendResults[i].slice().reverse();
+            });
+            setPriceTrends(trendsBySymbol);
 
         }
 
@@ -110,7 +117,7 @@ export default function Dashboard() {
 
     return (
 
-        <div className="flex bg-slate-950 min-h-screen">
+        <div className="flex bg-canvas min-h-screen">
 
             <Sidebar />
 
@@ -122,11 +129,11 @@ export default function Dashboard() {
 
                     {equitiesClosed && (
 
-                        <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-6 py-4 mb-8">
+                        <div className="flex items-center gap-3 bg-warn-soft border border-line rounded-2xl px-6 py-4 mb-8">
 
-                            <Clock size={20} className="text-amber-400 shrink-0" />
+                            <Clock size={18} className="text-warn shrink-0" />
 
-                            <p className="text-amber-300 text-sm">
+                            <p className="text-warn text-sm">
                                 US equity markets are currently closed.
                                 Equity prices below are from the last
                                 session. Forex and crypto continue trading.
@@ -136,38 +143,49 @@ export default function Dashboard() {
 
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
 
                         <MetricCard
                             title="Symbols Tracked"
                             value={symbols.length}
                             unit=""
-                            color="bg-cyan-500/20"
-                            icon={<TrendingUp className="text-cyan-400" />}
+                            icon={<TrendingUp className="text-accent" size={20} />}
                         />
 
                         <MetricCard
                             title="Ticks Ingested"
                             value={ticksTotal}
                             unit=""
-                            color="bg-purple-500/20"
-                            icon={<Database className="text-purple-400" />}
+                            icon={<Database className="text-accent" size={20} />}
                         />
 
                         <MetricCard
                             title="Alerts"
                             value={alertsTotal}
                             unit=""
-                            color="bg-yellow-500/20"
-                            icon={<Bell className="text-yellow-400" />}
+                            icon={<Bell className="text-accent" size={20} />}
                         />
 
                     </div>
 
                     <div className="mb-8">
 
-                        <SectionCard title="Tracked Symbols">
-                            <SymbolStatus symbols={symbols} latestTicks={latestTicks} />
+                        <SectionCard title="Price Trends">
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
+
+                                {symbols.map((symbol) => (
+
+                                    <PriceTrendCard
+                                        key={symbol.id}
+                                        symbol={symbol}
+                                        ticks={priceTrends[symbol.id] || []}
+                                    />
+
+                                ))}
+
+                            </div>
+
                         </SectionCard>
 
                     </div>
@@ -178,13 +196,13 @@ export default function Dashboard() {
 
                             {summary ? (
 
-                                <p className="text-slate-300 leading-relaxed">
+                                <p className="text-muted leading-relaxed">
                                     {summary.summary_text}
                                 </p>
 
                             ) : (
 
-                                <p className="text-slate-500 text-sm">
+                                <p className="text-faint text-sm">
                                     No summary generated yet -- the daily
                                     summary runs once a day, after market
                                     close.
@@ -196,7 +214,7 @@ export default function Dashboard() {
 
                     </div>
 
-                    <div className="grid xl:grid-cols-2 gap-6">
+                    <div className="grid xl:grid-cols-2 gap-5">
 
                         <SectionCard title="Latest Ticks">
 
@@ -204,11 +222,11 @@ export default function Dashboard() {
 
                                 <thead>
 
-                                    <tr className="border-b border-slate-700">
+                                    <tr className="border-b border-line text-muted text-xs">
 
-                                        <th className="text-left py-3">Symbol</th>
-                                        <th className="text-left">Price</th>
-                                        <th className="text-left">Volume</th>
+                                        <th className="text-left py-3 font-normal">Symbol</th>
+                                        <th className="text-left font-normal">Price</th>
+                                        <th className="text-left font-normal">Volume</th>
 
                                     </tr>
 
@@ -220,7 +238,7 @@ export default function Dashboard() {
 
                                         <tr
                                             key={tick.id}
-                                            className="border-b border-slate-800"
+                                            className="border-b border-surface-raised text-sm"
                                         >
 
                                             <td className="py-3">
@@ -229,7 +247,7 @@ export default function Dashboard() {
 
                                             <td>{tick.price}</td>
 
-                                            <td>{tick.volume}</td>
+                                            <td className="text-muted">{tick.volume}</td>
 
                                         </tr>
 
@@ -247,16 +265,16 @@ export default function Dashboard() {
 
                                 <div
                                     key={alert.id}
-                                    className="flex justify-between py-4 border-b border-slate-700"
+                                    className="flex justify-between gap-4 py-4 border-b border-surface-raised last:border-b-0"
                                 >
 
                                     <div>
 
-                                        <div className="text-white font-semibold">
+                                        <div className="text-ink font-semibold text-sm">
                                             {alert.message}
                                         </div>
 
-                                        <div className="text-slate-400 text-sm">
+                                        <div className="text-faint text-xs mt-1">
                                             {tickerFor(alert.symbol_id)}
                                         </div>
 
@@ -267,7 +285,7 @@ export default function Dashboard() {
                                             error. */}
                                         {alert.explanation && (
 
-                                            <div className="text-slate-300 text-sm mt-2 italic">
+                                            <div className="text-muted text-sm mt-2 italic leading-relaxed">
                                                 {alert.explanation}
                                             </div>
 
@@ -276,10 +294,10 @@ export default function Dashboard() {
                                     </div>
 
                                     <span
-                                        className={`px-3 py-1 rounded-full text-sm ${
+                                        className={`h-fit px-3 py-1 rounded-full text-xs font-semibold shrink-0 ${
                                             alert.severity === "HIGH"
-                                                ? "bg-red-600"
-                                                : "bg-yellow-600"
+                                                ? "bg-accent text-canvas"
+                                                : "bg-warn-soft text-warn"
                                         }`}
                                     >
 
@@ -292,7 +310,7 @@ export default function Dashboard() {
                             ))}
 
                             {alerts.length === 0 && (
-                                <p className="text-slate-500 text-sm">
+                                <p className="text-faint text-sm">
                                     No alerts yet.
                                 </p>
                             )}

@@ -1,31 +1,41 @@
-import { Activity } from "lucide-react";
-
 export default function Header() {
     return (
-        <header className="flex items-center justify-between bg-slate-900 border-b border-slate-700 px-8 py-5">
-            <div>
-                <div className="flex items-center gap-3">
-                    <Activity size={34} className="text-cyan-400" />
+        <header className="relative flex items-center justify-between bg-canvas border-b border-line px-10 py-7 overflow-hidden">
 
-                    <div>
-                        <h1 className="text-3xl font-bold text-white">
-                            QuantPulse
-                        </h1>
+            {/* subtle dot-grid texture, top-right */}
+            <div
+                className="absolute -top-14 -right-10 w-[340px] h-[220px] opacity-50 pointer-events-none"
+                style={{
+                    backgroundImage: "radial-gradient(#3A3530 1.4px, transparent 1.4px)",
+                    backgroundSize: "16px 16px",
+                    WebkitMaskImage: "radial-gradient(ellipse at center, black 10%, transparent 70%)",
+                    maskImage: "radial-gradient(ellipse at center, black 10%, transparent 70%)",
+                }}
+            />
 
-                        <p className="text-slate-400 text-sm">
-                            Real-Time Market Monitoring Platform
-                        </p>
-                    </div>
+            <div className="relative">
+                <div className="relative inline-block">
+                    <span className="font-display text-3xl font-bold tracking-tight text-ink">
+                        QuantPulse
+                    </span>
+                    <div
+                        className="absolute -left-1 -right-1 bottom-1.5 h-2.5 bg-accent opacity-85 -z-10"
+                        style={{ transform: "skewX(-8deg) rotate(-1.5deg)" }}
+                    />
                 </div>
+
+                <p className="text-muted text-sm mt-1">
+                    Real-Time Market Monitoring Platform
+                </p>
             </div>
 
-            <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
-
-                <span className="text-green-400 font-medium">
+            <div className="relative flex items-center gap-2 bg-surface border border-line px-4 py-2 rounded-full">
+                <div className="w-1.5 h-1.5 rounded-full bg-good" />
+                <span className="text-good text-sm font-semibold">
                     System Online
                 </span>
             </div>
+
         </header>
     );
 }
