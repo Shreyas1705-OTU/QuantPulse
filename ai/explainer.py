@@ -69,18 +69,28 @@ def run():
                 severity=row.severity,
                 message=row.message,
             )
+
+            # Write-back shares the try with the LLM call, not a separate
+            # one after it -- if the LLM succeeds but this UPDATE hits a
+            # transient DB hiccup (a dropped connection, a lock timeout),
+            # that must not propagate uncaught and kill the whole job
+            # (and the rest of the batch with it). The row stays NULL
+            # either way, so next run just costs one extra LLM call, never
+            # data corruption -- this is exactly the same "one bad thing
+            # can't sink the batch" guarantee the LLM call already had.
+            with engine.begin() as conn:
+                conn.execute(
+                    update(alerts_table)
+                    .where(alerts_table.c.id == row.id)
+                    .values(explanation=explanation)
+                )
+
         except Exception as e:
-            # One bad call (rate limit, transient network error) must not
-            # sink the rest of the batch -- leave it NULL, next run retries.
+            # One bad call or write (rate limit, transient network error,
+            # a dropped DB connection) must not sink the rest of the
+            # batch -- leave it NULL, next run retries.
             print(f"  alert {row.id}: FAILED ({e}) -- will retry next run")
             continue
-
-        with engine.begin() as conn:
-            conn.execute(
-                update(alerts_table)
-                .where(alerts_table.c.id == row.id)
-                .values(explanation=explanation)
-            )
 
         explained += 1
         print(f"  alert {row.id} ({row.ticker}): {explanation}")
