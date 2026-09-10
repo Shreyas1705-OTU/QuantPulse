@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: kube-state-metrics
+  namespace: quantpulse
+
+spec:
+  # Metrics are a point-in-time snapshot of the k8s API's own state --
+  # nothing here is per-replica data, so more than one would just be
+  # redundant scrape load, not extra coverage.
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: kube-state-metrics
+
+  template:
+    metadata:
+      labels:
+        app: kube-state-metrics
+
+    spec:
+      serviceAccountName: kube-state-metrics
+
+      containers:
+        - name: kube-state-metrics
+
+          image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0
+
+          # Restricts which collectors it even tries to run to match the
+          # ClusterRole above (cronjobs/jobs only) -- without this it'd
+          # attempt to watch everything it knows how to, log a stream of
+          # RBAC-forbidden warnings for the rest, and never crash but
+          # never be this deliberately scoped either.
+          args:
+            - --resources=cronjobs,jobs
+
+          ports:
+            - containerPort: 8080
+              name: http-metrics
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15

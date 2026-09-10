@@ -162,6 +162,7 @@ kubectl rollout status deployment/frontend -n quantpulse
 kubectl rollout status deployment/ingestion -n quantpulse
 kubectl rollout status deployment/prometheus -n quantpulse
 kubectl rollout status deployment/grafana -n quantpulse
+kubectl rollout status deployment/kube-state-metrics -n quantpulse
 
 echo ""
 echo "[8/9] Waiting for PostgreSQL..."

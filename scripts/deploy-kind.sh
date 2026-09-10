@@ -129,6 +129,7 @@ echo ""
 echo "[10/11] Deploying monitoring stack..."
 kubectl apply -f k8s/monitoring/prometheus/
 kubectl apply -f k8s/monitoring/grafana/
+kubectl apply -f k8s/monitoring/kube-state-metrics/
 
 echo ""
 echo "[11/11] Deploying ingress..."
@@ -143,6 +144,7 @@ kubectl rollout status deployment/frontend -n quantpulse
 kubectl rollout status deployment/ingestion -n quantpulse
 kubectl rollout status deployment/prometheus -n quantpulse
 kubectl rollout status deployment/grafana -n quantpulse
+kubectl rollout status deployment/kube-state-metrics -n quantpulse
 
 echo ""
 echo "Waiting for PostgreSQL..."

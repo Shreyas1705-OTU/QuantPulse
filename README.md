@@ -147,6 +147,8 @@ The screenshot below shows the `up` query successfully returning the backend tar
 ### Monitoring
 - **Prometheus**
 - **Grafana**
+- **kube-state-metrics** (CronJob/Job success-failure visibility)
+- **redis_exporter** (Redis process-level metrics)
 
 ### Infrastructure / DevOps
 - **Docker**
@@ -356,7 +358,7 @@ the cluster itself, to keep that a conscious, cost-aware step.
 QuantPulse includes an observability stack that helps validate backend health and runtime behavior.
 
 ### Prometheus
-Prometheus scrapes the backend `/metrics` endpoint and validates service health.
+Four scrape targets, every 5s: the backend and ingestion services' own `/metrics` endpoints, plus (new) `kube-state-metrics:8080` and `redis:9121` (the `redis_exporter` sidecar on the Redis pod).
 
 Example query used during validation:
 
@@ -369,13 +371,15 @@ Grafana is provisioned with:
 - A **Prometheus datasource**
 - A **pre-configured QuantPulse monitoring dashboard**
 
-The Grafana dashboard displays:
-- Backend status
-- Backend uptime
-- Memory usage
-- CPU usage
-- Python GC activity
-- Active scrape targets
+The dashboard is QuantPulse-specific, not generic process metrics -- ticks ingested and alerts generated were already being scraped since Phase 2, but had zero panels using them until this pass:
+- Backend/Redis status, CronJob success rate (top row)
+- Ticks ingested rate, active WebSocket connections
+- Alerts by severity (HIGH/MEDIUM, from the anomaly detector)
+- Cache hit rate (`/ticks/latest`, `/summary/*`)
+- Backend request rate + p95 latency, labeled by route template (not raw path, to keep cardinality bounded -- see `backend/app/main.py`'s `prometheus_request_metrics` middleware)
+- Redis memory usage, ops/sec, connected clients -- real process-level metrics from `redis_exporter`, not just the app's own counters
+- `ai-explainer`/`ai-daily-summary`/`ai-symbol-summary` job success/failure history, from `kube-state-metrics` (scoped to just `cronjobs`/`jobs` RBAC, not the full generic resource set upstream's own manifests grant)
+- Backend CPU/memory, demoted to a small row at the bottom -- still useful, just not the whole dashboard anymore
 
 ### Monitoring Flow Diagram
 

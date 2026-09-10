@@ -43,4 +43,10 @@ resources:
   - monitoring/grafana/deployment.yaml
   - monitoring/grafana/service.yaml
 
+  - monitoring/kube-state-metrics/serviceaccount.yaml
+  - monitoring/kube-state-metrics/clusterrole.yaml
+  - monitoring/kube-state-metrics/clusterrolebinding.yaml
+  - monitoring/kube-state-metrics/deployment.yaml
+  - monitoring/kube-state-metrics/service.yaml
+
   - ingress/ingress.yaml

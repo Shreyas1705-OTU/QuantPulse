@@ -17,21 +17,35 @@ Postgres, like before this existed", never take the endpoint down.
 import json
 
 import redis
+from prometheus_client import Counter
 
 from app.core.redis_client import redis_client
+
+# Labeled hit/miss, not just a bare total -- Phase 3's cache hit rate
+# panel is hits / (hits + misses). Every non-hit path below (nothing
+# cached, a Redis error, a poisoned value) counts as a miss: they're all
+# "fell through to Postgres" from the caller's perspective, which is the
+# only distinction this metric needs to make.
+CACHE_RESULT_TOTAL = Counter(
+    "quantpulse_cache_result_total",
+    "Cache-aside read outcomes for hot endpoints (ticks/latest, summary/*)",
+    ["result"],
+)
 
 
 def cache_get(key: str):
     try:
         raw = redis_client.get(key)
     except redis.RedisError:
+        CACHE_RESULT_TOTAL.labels(result="miss").inc()
         return None
 
     if raw is None:
+        CACHE_RESULT_TOTAL.labels(result="miss").inc()
         return None
 
     try:
-        return json.loads(raw)
+        value = json.loads(raw)
     except json.JSONDecodeError:
         # A poisoned/malformed value (key collision with something else
         # written to this DB, a crashed cache_set, ...) must degrade to
@@ -44,7 +58,11 @@ def cache_get(key: str):
             redis_client.delete(key)
         except redis.RedisError:
             pass
+        CACHE_RESULT_TOTAL.labels(result="miss").inc()
         return None
+
+    CACHE_RESULT_TOTAL.labels(result="hit").inc()
+    return value
 
 
 def cache_set(key: str, value, ttl_seconds: int):
