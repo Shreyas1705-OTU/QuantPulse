@@ -25,6 +25,33 @@ import {
     getSymbolSummaries,
 } from "../services/quantpulseService";
 
+import { subscribeToEvents } from "../services/stream";
+
+// Collapses a burst of WS events (e.g. BTCUSDT ticking many times a
+// second) into at most one reload per `waitMs` -- without this, a busy
+// symbol would make loadData() fire far more often than the old 5s poll
+// ever did, not less.
+function throttle(fn, waitMs) {
+    let lastRun = 0;
+    let timer = null;
+
+    return function throttled(...args) {
+        const now = Date.now();
+        const remaining = waitMs - (now - lastRun);
+
+        if (remaining <= 0) {
+            lastRun = now;
+            fn(...args);
+        } else if (!timer) {
+            timer = setTimeout(() => {
+                lastRun = Date.now();
+                timer = null;
+                fn(...args);
+            }, remaining);
+        }
+    };
+}
+
 export default function Dashboard() {
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -62,9 +89,26 @@ export default function Dashboard() {
 
         loadData();
 
-        const interval = setInterval(loadData, 5000);
+        // Primary path: reload when ingestion actually publishes a
+        // tick/alert (ingestion -> Redis -> backend WS relay -> here),
+        // throttled to at most once/sec so a busy symbol can't spam
+        // reloads. Replaces the old flat 5s timer -- see
+        // services/stream.js.
+        const throttledReload = throttle(loadData, 1000);
+        const unsubscribe = subscribeToEvents(() => throttledReload());
 
-        return () => clearInterval(interval);
+        // Safety net, not the primary path: if the WS connection is down
+        // for an extended stretch (a proxy blocking WS, a backend pod
+        // restart outlasting stream.js's own reconnect), don't strand
+        // the dashboard on stale data until a manual refresh. Far longer
+        // than the old poll interval since this only needs to catch the
+        // case where push isn't working at all.
+        const fallbackInterval = setInterval(loadData, 30000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(fallbackInterval);
+        };
 
     }, []);
 

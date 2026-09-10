@@ -8,6 +8,7 @@ from app.routers.symbols import router as symbol_router
 from app.routers.ticks import router as tick_router
 from app.routers.alerts import router as alert_router
 from app.routers.summary import router as summary_router
+from app.routers.stream import router as stream_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -70,6 +71,14 @@ app.include_router(
 # -----------------------------
 app.include_router(
     summary_router,
+    prefix="/api/v1",
+)
+
+# -----------------------------
+# Live Push (WebSocket)
+# -----------------------------
+app.include_router(
+    stream_router,
     prefix="/api/v1",
 )
 

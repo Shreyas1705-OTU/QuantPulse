@@ -99,11 +99,15 @@ else
 fi
 
 echo ""
-echo "[7/10] Deploying PostgreSQL..."
+echo "[7/11] Deploying PostgreSQL..."
 kubectl apply -f k8s/postgres/
 
 echo ""
-echo "[8/10] Deploying backend, frontend, ingestion, and ai jobs..."
+echo "[8/11] Deploying Redis..."
+kubectl apply -f k8s/redis/
+
+echo ""
+echo "[9/11] Deploying backend, frontend, ingestion, and ai jobs..."
 kubectl apply -f k8s/backend/
 kubectl apply -f k8s/frontend/
 kubectl apply -f k8s/ingestion/
@@ -122,17 +126,18 @@ kubectl rollout restart deployment/frontend -n quantpulse
 kubectl rollout restart deployment/ingestion -n quantpulse
 
 echo ""
-echo "[9/10] Deploying monitoring stack..."
+echo "[10/11] Deploying monitoring stack..."
 kubectl apply -f k8s/monitoring/prometheus/
 kubectl apply -f k8s/monitoring/grafana/
 
 echo ""
-echo "[10/10] Deploying ingress..."
+echo "[11/11] Deploying ingress..."
 kubectl apply -f k8s/ingress/
 
 echo ""
 echo "Waiting for deployments..."
 
+kubectl rollout status deployment/redis -n quantpulse
 kubectl rollout status deployment/backend -n quantpulse
 kubectl rollout status deployment/frontend -n quantpulse
 kubectl rollout status deployment/ingestion -n quantpulse

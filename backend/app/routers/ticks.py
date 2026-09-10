@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.cache import cache_get, cache_set
 from app.core.security import get_current_user
 from app.database.session import get_db
 from app.schemas.tick import (
@@ -69,9 +70,22 @@ def get_latest_ticks(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    service = TickService(db)
+    # Cache-aside, 5s TTL -- matches the frontend's old poll cadence.
+    # With the WS push in place this is now mostly a first-load / plain
+    # REST-client cost saver rather than the primary path, but it's cheap
+    # insurance either way.
+    cache_key = "ticks:latest"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
 
-    return service.get_latest_tick_per_symbol()
+    service = TickService(db)
+    ticks = service.get_latest_tick_per_symbol()
+
+    data = [TickResponse.model_validate(t).model_dump(mode="json") for t in ticks]
+    cache_set(cache_key, data, ttl_seconds=5)
+
+    return data
 
 
 @router.get(

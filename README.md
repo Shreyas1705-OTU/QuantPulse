@@ -26,6 +26,7 @@ It is designed as a portfolio-ready full-stack project that demonstrates:
 - [Deployment Scripts](#deployment-scripts)
 - [Access URLs and Credentials](#access-urls-and-credentials)
 - [Monitoring and Observability](#monitoring-and-observability)
+- [Live Updates & Caching (Redis)](#live-updates--caching-redis)
 - [Automated Test Suite](#automated-test-suite)
 - [Cold-Start Validation and Testing](#cold-start-validation-and-testing)
 - [Why This Project Is Cloud-Native](#why-this-project-is-cloud-native)
@@ -139,6 +140,9 @@ The screenshot below shows the `up` query successfully returning the backend tar
 
 ### Database
 - **PostgreSQL**
+
+### Caching / Real-Time Messaging
+- **Redis** (cache-aside reads + pub/sub for live push)
 
 ### Monitoring
 - **Prometheus**
@@ -377,6 +381,22 @@ The Grafana dashboard displays:
 
 <img width="5179" height="780" alt="Monitering data flow" src="https://github.com/user-attachments/assets/a5748820-1461-4244-a914-c92987b172db" />
 
+
+---
+
+## Live Updates & Caching (Redis)
+
+Redis serves two distinct purposes, both independent of each other even though they share the same instance:
+
+**Real-time push (pub/sub).** `ingestion/finnhub_ingestion.py` publishes every tick/alert to a Redis channel (`ticks` / `alerts`) immediately after writing it to Postgres -- best-effort, never blocking or failing the write itself if Redis is briefly unreachable. The backend's `WS /api/v1/stream` endpoint (`backend/app/routers/stream.py`) subscribes to those same channels and relays each event straight through to any connected browser tab over a WebSocket. This is what lets the dashboard react to real trade activity as it happens instead of polling on a fixed timer -- `frontend/src/services/stream.js` opens the connection and `Dashboard.jsx` reloads (throttled to at most once/sec) whenever something actually arrives, with a much longer interval-based poll kept only as a fallback in case the WS connection is ever down for an extended stretch.
+
+Auth on the socket doesn't go through the usual header-based flow: a browser's native WebSocket API can't set an `Authorization` header on the handshake the way a normal `fetch`/`axios` call can, so the connection is accepted first and the client's first text frame must be `{"token": "<jwt>"}` -- validated with the same decode + user lookup every REST endpoint uses. Anything else (timeout, bad token) closes the connection with app-defined WS close code `4401` before ever subscribing to Redis.
+
+**Cache-aside reads.** `GET /ticks/latest` (5s TTL), `GET /summary/today`, and `GET /summary/symbols` (60s TTL) check Redis before hitting Postgres -- see `backend/app/core/cache.py`. Pure TTL expiry, not event-driven invalidation: a cached value is simply overwritten on the next miss after it expires, whichever endpoint hits it. Every cache operation degrades silently to "just hit Postgres" on a Redis error, so a Redis outage never takes an endpoint down -- only removes the shortcut in front of it.
+
+Redis itself (`redis:7-alpine`) runs with no persistent volume -- nothing stored in it is ever the source of truth (Postgres is), so losing it on a restart just means a cold cache and a brief reconnect gap for any open WS clients, never lost data.
+
+**Running locally:** `docker-compose.yml` includes a `redis` service -- nothing extra to start. On Kind/AKS it's `k8s/redis/deployment.yaml` + `service.yaml`, deployed automatically by `deploy-kind.sh`/`deploy-aks.sh` alongside everything else.
 
 ---
 
