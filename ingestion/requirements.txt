@@ -2,3 +2,4 @@ websocket-client==1.9.2
 SQLAlchemy==2.0.51
 psycopg2-binary==2.9.12
 prometheus_client==0.26.0
+redis==5.2.1

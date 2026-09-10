@@ -13,6 +13,11 @@ Exposes its own /metrics endpoint on :8001 -- this is the real place
 never touches these writes -- see anomaly_detector.py for the rolling
 z-score check run on every tick.
 
+Also publishes each tick/alert to Redis (see publish_event) right after
+its Postgres write -- best-effort, non-fatal on failure, purely so the
+backend's WS relay can push it live if anything's listening. Redis is
+never the source of truth here and this process never reads from it.
+
 MUST run as a single replica -- see k8s/ingestion/deployment.yaml.
 """
 
@@ -21,6 +26,7 @@ import os
 import time
 from datetime import datetime, timezone
 
+import redis
 import websocket
 from prometheus_client import Counter, start_http_server
 from sqlalchemy import create_engine, MetaData, select
@@ -29,6 +35,12 @@ from anomaly_detector import AnomalyDetector
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 FINNHUB_API_KEY = os.environ["FINNHUB_API_KEY"]
+
+# Not a hard requirement like DATABASE_URL/FINNHUB_API_KEY above -- publish
+# is best-effort (see publish_event below), so a missing/unreachable Redis
+# degrades to "no live push", not "ingestion won't start". Default matches
+# the in-cluster service name (k8s/redis/service.yaml) and docker-compose.
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 TICKS_INGESTED_TOTAL = Counter(
     "quantpulse_ticks_ingested_total",
@@ -46,6 +58,32 @@ ALERTS_TOTAL = Counter(
 
 engine = create_engine(DATABASE_URL)
 detector = AnomalyDetector()
+
+# Short timeouts + decode_responses so publish() never blocks the tick loop
+# waiting on a hung/unreachable Redis, and payloads round-trip as str, not
+# bytes. Connection itself is lazy (redis-py only dials on first command),
+# so a Redis that isn't up yet at process start doesn't delay startup --
+# it just fails the first publish_event call, which is caught below.
+redis_client = redis.Redis.from_url(
+    REDIS_URL,
+    decode_responses=True,
+    socket_connect_timeout=2,
+    socket_timeout=2,
+)
+
+
+def publish_event(channel, payload):
+    """
+    Best-effort publish to Redis -- a subscriber (the backend's WS relay)
+    gets it live if one happens to be listening, but nothing here ever
+    waits for or requires that. Ticks/alerts are already durably written
+    to Postgres by the time this is called, so a Redis outage costs only
+    the live-push feature, never data.
+    """
+    try:
+        redis_client.publish(channel, json.dumps(payload, default=str))
+    except redis.RedisError as e:
+        print(f"Redis publish to '{channel}' failed (non-fatal): {e}")
 
 
 def wait_for_schema(max_retries=30, retry_delay=5):
@@ -166,12 +204,29 @@ def on_message(ws, message):
 
         print(f"{ticker}: {trade['p']} x {trade['v']} @ {traded_at}")
 
+        publish_event("ticks", {
+            "type": "tick",
+            "symbol_id": symbol_id,
+            "ticker": ticker,
+            "price": trade["p"],
+            "volume": trade["v"],
+            "traded_at": traded_at.isoformat(),
+        })
+
         for severity, message in detector.check_tick(
             ticker, trade["p"], trade["v"], traded_at
         ):
             insert_alert(symbol_id, message, severity)
             ALERTS_TOTAL.inc()
             print(f"  [{severity}] {ticker}: {message}")
+
+            publish_event("alerts", {
+                "type": "alert",
+                "symbol_id": symbol_id,
+                "ticker": ticker,
+                "message": message,
+                "severity": severity,
+            })
 
 
 # Set by on_error, read by run() after ws.run_forever() returns -- lets

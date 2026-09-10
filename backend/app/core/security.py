@@ -56,15 +56,16 @@ def create_access_token(data: dict):
     )
 
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
-):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials"
-    )
-
+def get_user_from_token(token: str, db: Session):
+    """
+    Shared core of get_current_user below -- given a raw JWT string and a
+    DB session, returns the User or None (never raises). Split out so
+    app/routers/stream.py's WebSocket handshake can validate the token a
+    browser WS client sends as its first frame (browsers can't set an
+    Authorization header on a WS handshake, so it can't go through
+    get_current_user's normal OAuth2PasswordBearer/Depends path) using
+    the exact same decode + lookup logic as every REST endpoint.
+    """
     try:
         payload = jwt.decode(
             token,
@@ -75,16 +76,26 @@ def get_current_user(
         username = payload.get("sub")
 
         if username is None:
-            raise credentials_exception
+            return None
 
         service = UserService(db)
 
-        user = service.get_user_by_username(username)
-
-        if user is None:
-            raise credentials_exception
-
-        return user
+        return service.get_user_by_username(username)
 
     except JWTError:
-        raise credentials_exception
+        return None
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
+    user = get_user_from_token(token, db)
+
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not validate credentials"
+        )
+
+    return user

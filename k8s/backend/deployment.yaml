@@ -56,6 +56,9 @@ spec:
             - name: DATABASE_URL
               value: "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse"
 
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+
             - name: JWT_SECRET_KEY
               valueFrom:
                 secretKeyRef:

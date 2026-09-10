@@ -17,6 +17,9 @@ resources:
   - postgres/service_postgres.yaml
   - postgres/statefulset.yaml
 
+  - redis/deployment.yaml
+  - redis/service.yaml
+
   - backend/deployment.yaml
   - backend/service.yaml
 

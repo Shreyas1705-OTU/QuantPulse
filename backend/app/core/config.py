@@ -21,6 +21,11 @@ class Settings:
         "postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse",
     )
 
+    # Cache-aside reads (app/core/cache.py) and the pub/sub relay
+    # (app/routers/stream.py) both go through this -- same service name
+    # in-cluster (k8s/redis/service.yaml) and in docker-compose.
+    REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
     # Signs/verifies JWTs (app/core/security.py). k8s provisions the real
     # value via quantpulse-secret -> JWT_SECRET_KEY (see k8s/secret.yaml);
     # this fallback only covers local dev without that secret set.

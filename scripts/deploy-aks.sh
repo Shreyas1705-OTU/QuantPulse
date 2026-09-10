@@ -156,6 +156,7 @@ fi
 echo ""
 echo "Waiting for deployments..."
 
+kubectl rollout status deployment/redis -n quantpulse
 kubectl rollout status deployment/backend -n quantpulse
 kubectl rollout status deployment/frontend -n quantpulse
 kubectl rollout status deployment/ingestion -n quantpulse

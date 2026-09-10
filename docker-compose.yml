@@ -18,6 +18,17 @@ services:
     restart: unless-stopped
 
 
+  redis:
+    image: redis:7-alpine
+
+    container_name: quantpulse-redis
+
+    ports:
+      - "6379:6379"
+
+    restart: unless-stopped
+
+
   backend:
     build:
       context: ./backend
@@ -26,12 +37,14 @@ services:
 
     environment:
       DATABASE_URL: postgresql://quantpulse:quantpulse123@postgres:5432/quantpulse
+      REDIS_URL: redis://redis:6379/0
 
     ports:
       - "8000:8000"
 
     depends_on:
       - postgres
+      - redis
 
     restart: unless-stopped
 
