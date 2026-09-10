@@ -54,13 +54,26 @@ export function subscribeToEvents(onEvent) {
             onEvent(payload);
         };
 
-        socket.onclose = () => {
+        socket.onclose = (event) => {
             if (stopped) return;
 
-            // Reconnect on any close -- a network blip, a backend pod
-            // restart, or an expired token that a fresh login just
-            // replaced shouldn't permanently strand the dashboard on
-            // "no live updates" until a manual page refresh.
+            if (event.code === 4401) {
+                // Server rejected the token -- missing, expired, or
+                // revoked (see backend/app/routers/stream.py's
+                // _authenticate/REAUTH_INTERVAL_SECONDS). Retrying with
+                // the exact same stored token would just get rejected
+                // again every time, forever -- reconnecting here would
+                // mean hammering the backend with a fresh handshake + DB
+                // lookup every 3s indefinitely. Stop until a fresh
+                // sign-in replaces the token; AuthContext's sign-in flow
+                // re-mounts Dashboard (and so calls connect() fresh)
+                // once that happens.
+                return;
+            }
+
+            // Reconnect on any other close -- a network blip or a
+            // backend pod restart shouldn't permanently strand the
+            // dashboard on "no live updates" until a manual page refresh.
             reconnectTimer = setTimeout(connect, 3000);
         };
 

@@ -35,7 +35,16 @@ def get_async_redis() -> redis_asyncio.Redis:
     # WebSocket relay holds this open for the lifetime of a single
     # connection (potentially hours), so it gets its own rather than
     # sharing a pool with short-lived cache reads.
+    #
+    # Same socket timeouts as the sync client above, for the same reason:
+    # without them, a silent network partition to Redis (as opposed to a
+    # clean connection refusal) leaves the underlying TCP connect retrying
+    # for minutes with nothing to interrupt it, hanging pubsub.subscribe/
+    # unsubscribe/close indefinitely and leaking a connection + asyncio
+    # task per stuck WebSocket.
     return redis_asyncio.Redis.from_url(
         settings.REDIS_URL,
         decode_responses=True,
+        socket_connect_timeout=2,
+        socket_timeout=2,
     )
