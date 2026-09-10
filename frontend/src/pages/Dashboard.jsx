@@ -35,7 +35,7 @@ function throttle(fn, waitMs) {
     let lastRun = 0;
     let timer = null;
 
-    return function throttled(...args) {
+    function throttled(...args) {
         const now = Date.now();
         const remaining = waitMs - (now - lastRun);
 
@@ -49,7 +49,19 @@ function throttle(fn, waitMs) {
                 fn(...args);
             }, remaining);
         }
+    }
+
+    // Cancels a pending trailing call -- without this, an event arriving
+    // just before Dashboard unmounts leaves its setTimeout armed, which
+    // then fires loadData() (a setState) against an unmounted component.
+    throttled.cancel = () => {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
     };
+
+    return throttled;
 }
 
 export default function Dashboard() {
@@ -108,6 +120,7 @@ export default function Dashboard() {
         return () => {
             unsubscribe();
             clearInterval(fallbackInterval);
+            throttledReload.cancel();
         };
 
     }, []);

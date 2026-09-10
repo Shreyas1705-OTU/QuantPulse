@@ -82,10 +82,13 @@ def get_latest_ticks(
     service = TickService(db)
     ticks = service.get_latest_tick_per_symbol()
 
-    data = [TickResponse.model_validate(t).model_dump(mode="json") for t in ticks]
-    cache_set(cache_key, data, ttl_seconds=5)
+    # Return the validated models, not re-dumped dicts -- FastAPI's
+    # response_model would otherwise re-validate the same data a second
+    # time on the way out. The dict form is only needed for Redis.
+    parsed = [TickResponse.model_validate(t) for t in ticks]
+    cache_set(cache_key, [p.model_dump(mode="json") for p in parsed], ttl_seconds=5)
 
-    return data
+    return parsed
 
 
 @router.get(

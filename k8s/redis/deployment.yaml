@@ -13,6 +13,16 @@ spec:
   # mean subscribers doing duplicate work for no benefit.
   replicas: 1
 
+  # Recreate, not the default RollingUpdate -- with a single replica,
+  # RollingUpdate briefly runs the old and new pod side by side under the
+  # same Service, and Redis pub/sub is entirely in-memory per pod:
+  # ingestion's publishes and the backend's WS subscribers can land on
+  # different pods during that window, silently dropping every tick/alert
+  # for whichever side missed them. A few seconds of downtime during a
+  # Redis rollout is preferable to that split-brain window.
+  strategy:
+    type: Recreate
+
   selector:
     matchLabels:
       app: redis

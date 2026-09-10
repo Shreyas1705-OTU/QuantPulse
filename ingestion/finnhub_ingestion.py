@@ -72,6 +72,21 @@ redis_client = redis.Redis.from_url(
 )
 
 
+# Circuit breaker for publish_event below. Without it, a Redis outage
+# doesn't just fail each publish -- it costs the full socket_connect_timeout
+# (2s) on EVERY publish attempt, and on_message calls publish_event once
+# per trade inside its own loop, so a single batched Finnhub message with
+# a few dozen trades could stall the tick-ingestion callback thread for
+# tens of seconds, long enough for Finnhub to time out the connection.
+# That directly contradicts publish_event's own "never blocks the tick
+# loop" intent. After PUBLISH_FAILURE_THRESHOLD consecutive failures,
+# publishes short-circuit for PUBLISH_COOLDOWN_SECONDS instead of paying
+# the timeout again on every call.
+_publish_state = {"failures": 0, "cooldown_until": 0.0}
+PUBLISH_FAILURE_THRESHOLD = 3
+PUBLISH_COOLDOWN_SECONDS = 10
+
+
 def publish_event(channel, payload):
     """
     Best-effort publish to Redis -- a subscriber (the backend's WS relay)
@@ -80,9 +95,19 @@ def publish_event(channel, payload):
     to Postgres by the time this is called, so a Redis outage costs only
     the live-push feature, never data.
     """
+    if time.time() < _publish_state["cooldown_until"]:
+        # Already known-down -- skip the network call entirely rather
+        # than pay socket_connect_timeout again for a Redis we just
+        # failed to reach a moment ago.
+        return
+
     try:
         redis_client.publish(channel, json.dumps(payload, default=str))
+        _publish_state["failures"] = 0
     except redis.RedisError as e:
+        _publish_state["failures"] += 1
+        if _publish_state["failures"] >= PUBLISH_FAILURE_THRESHOLD:
+            _publish_state["cooldown_until"] = time.time() + PUBLISH_COOLDOWN_SECONDS
         print(f"Redis publish to '{channel}' failed (non-fatal): {e}")
 
 

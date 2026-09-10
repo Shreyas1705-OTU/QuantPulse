@@ -30,7 +30,21 @@ def cache_get(key: str):
     if raw is None:
         return None
 
-    return json.loads(raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # A poisoned/malformed value (key collision with something else
+        # written to this DB, a crashed cache_set, ...) must degrade to
+        # "just hit Postgres" same as a Redis error would -- an uncaught
+        # JSONDecodeError here would otherwise crash the request instead,
+        # the opposite of what this module exists to guarantee. Delete it
+        # so the next read doesn't hit the same decode error again before
+        # its TTL naturally expires.
+        try:
+            redis_client.delete(key)
+        except redis.RedisError:
+            pass
+        return None
 
 
 def cache_set(key: str, value, ttl_seconds: int):

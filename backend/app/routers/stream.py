@@ -17,14 +17,19 @@ every REST endpoint uses (get_user_from_token). Anything else --
 timeout, malformed frame, bad/expired token -- closes the connection
 with a 4401 (app-defined WS close code in the 4000-4999 range reserved
 for that) rather than ever subscribing to Redis for an unauthenticated
-caller.
+caller. Unlike a REST call, though, a WS connection can sit open for
+hours -- so that same check also re-runs every REAUTH_INTERVAL_SECONDS
+for the life of the connection, not just once at handshake (see
+_validate_token/REAUTH_INTERVAL_SECONDS below).
 """
 
 import asyncio
 import json
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from redis import RedisError
+from starlette.concurrency import run_in_threadpool
 
 from app.core.redis_client import get_async_redis
 from app.core.security import get_user_from_token
@@ -41,24 +46,23 @@ AUTH_TIMEOUT_SECONDS = 10
 # connection to anything proxying this.
 KEEPALIVE_SECONDS = 15
 
+# Re-checked on this cadence for the life of the connection (see the main
+# loop below) -- without this, a JWT valid at connect time keeps
+# streaming forever, even past its own 60-minute expiry or past an admin
+# deactivating the user, since a WS connection has no per-request auth
+# check the way every REST endpoint does.
+REAUTH_INTERVAL_SECONDS = 60
 
-async def _authenticate(websocket: WebSocket):
-    """First frame must be {"token": "..."}; returns the User or None."""
-    try:
-        first_message = await asyncio.wait_for(
-            websocket.receive_text(), timeout=AUTH_TIMEOUT_SECONDS
-        )
-    except (asyncio.TimeoutError, WebSocketDisconnect):
-        return None
 
-    try:
-        token = json.loads(first_message).get("token")
-    except (json.JSONDecodeError, AttributeError):
-        token = None
-
-    if not token:
-        return None
-
+def _validate_token(token):
+    """
+    Sync JWT decode + user lookup (get_user_from_token does a blocking
+    psycopg2 round-trip) -- every caller below runs this via
+    run_in_threadpool, never awaits it directly. Awaiting a sync DB call
+    straight from an async def would block the whole event loop for its
+    duration, stalling every OTHER currently-open WS connection's relay
+    and keepalives for as long as this one query takes.
+    """
     db = SessionLocal()
     try:
         return get_user_from_token(token, db)
@@ -66,11 +70,32 @@ async def _authenticate(websocket: WebSocket):
         db.close()
 
 
+async def _authenticate(websocket: WebSocket):
+    """First frame must be {"token": "..."}; returns (user, token), (None, None) on failure."""
+    try:
+        first_message = await asyncio.wait_for(
+            websocket.receive_text(), timeout=AUTH_TIMEOUT_SECONDS
+        )
+    except (asyncio.TimeoutError, WebSocketDisconnect):
+        return None, None
+
+    try:
+        token = json.loads(first_message).get("token")
+    except (json.JSONDecodeError, AttributeError):
+        token = None
+
+    if not token:
+        return None, None
+
+    user = await run_in_threadpool(_validate_token, token)
+    return user, token
+
+
 @router.websocket("/stream")
 async def stream_events(websocket: WebSocket):
     await websocket.accept()
 
-    user = await _authenticate(websocket)
+    user, token = await _authenticate(websocket)
     if user is None:
         await websocket.close(code=4401, reason="Unauthorized")
         return
@@ -80,6 +105,8 @@ async def stream_events(websocket: WebSocket):
 
     try:
         await pubsub.subscribe(*CHANNELS)
+
+        last_reauth = time.monotonic()
 
         while True:
             message = await pubsub.get_message(
@@ -95,6 +122,12 @@ async def stream_events(websocket: WebSocket):
             else:
                 await websocket.send_json({"type": "ping"})
 
+            if time.monotonic() - last_reauth >= REAUTH_INTERVAL_SECONDS:
+                last_reauth = time.monotonic()
+                if await run_in_threadpool(_validate_token, token) is None:
+                    await websocket.close(code=4401, reason="Session expired")
+                    return
+
     except (WebSocketDisconnect, RedisError):
         # Client closed the tab, or Redis dropped mid-stream -- either
         # way there's nothing left to relay to. Not an error worth
@@ -103,6 +136,23 @@ async def stream_events(websocket: WebSocket):
         pass
 
     finally:
-        await pubsub.unsubscribe(*CHANNELS)
-        await pubsub.close()
-        await redis_conn.close()
+        # Each cleanup call guarded independently -- if Redis died
+        # mid-stream (the except above already caught that from
+        # get_message), unsubscribe/close below would otherwise re-raise
+        # the same RedisError trying to send commands over the same dead
+        # connection, escaping this finally block as an unhandled
+        # exception and skipping whichever cleanup call came after it.
+        try:
+            await pubsub.unsubscribe(*CHANNELS)
+        except RedisError:
+            pass
+
+        try:
+            await pubsub.close()
+        except RedisError:
+            pass
+
+        try:
+            await redis_conn.close()
+        except RedisError:
+            pass

@@ -46,10 +46,15 @@ def get_today_summary(
             detail="No summary generated yet",
         )
 
-    data = DailySummaryResponse.model_validate(summary).model_dump(mode="json")
-    cache_set(cache_key, data, ttl_seconds=SUMMARY_TTL_SECONDS)
+    # Return the validated model itself, not a re-dumped dict -- FastAPI's
+    # response_model would otherwise re-run the exact same Pydantic
+    # validation a second time on the way out, for no benefit (the model
+    # is already the right type). The dict form is only needed for what
+    # actually goes into Redis, which has to be JSON-serializable.
+    parsed = DailySummaryResponse.model_validate(summary)
+    cache_set(cache_key, parsed.model_dump(mode="json"), ttl_seconds=SUMMARY_TTL_SECONDS)
 
-    return data
+    return parsed
 
 
 @router.get(
@@ -70,10 +75,13 @@ def get_symbol_summaries(
     service = SummaryService(db)
     rows = service.get_symbol_summaries()
 
-    data = [
-        SymbolSummaryResponse.model_validate(r).model_dump(mode="json")
-        for r in rows
-    ]
-    cache_set(cache_key, data, ttl_seconds=SUMMARY_TTL_SECONDS)
+    # Same reasoning as get_today_summary above -- return the validated
+    # models, cache their dumped form.
+    parsed = [SymbolSummaryResponse.model_validate(r) for r in rows]
+    cache_set(
+        cache_key,
+        [p.model_dump(mode="json") for p in parsed],
+        ttl_seconds=SUMMARY_TTL_SECONDS,
+    )
 
-    return data
+    return parsed
