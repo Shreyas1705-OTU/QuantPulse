@@ -131,6 +131,18 @@ kubectl apply -f k8s/monitoring/prometheus/
 kubectl apply -f k8s/monitoring/grafana/
 kubectl apply -f k8s/monitoring/kube-state-metrics/
 
+# Same staleness problem as backend/frontend/ingestion above, but for a
+# different reason: kubectl apply reports these Deployments "unchanged"
+# whenever only their ConfigMap (scrape config / dashboard JSON) changed,
+# since the Deployment's own YAML text really is identical. Found live on
+# a real AKS redeploy -- Prometheus kept scraping with its old 2-target
+# config, and Grafana kept serving the old dashboard, until manually
+# restarted, because neither process re-reads its mounted ConfigMap on
+# its own. Restarting every run costs a few seconds of scrape/dashboard
+# unavailability; silently serving a stale config indefinitely is worse.
+kubectl rollout restart deployment/prometheus -n quantpulse
+kubectl rollout restart deployment/grafana -n quantpulse
+
 echo ""
 echo "[11/11] Deploying ingress..."
 kubectl apply -f k8s/ingress/

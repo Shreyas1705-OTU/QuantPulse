@@ -110,6 +110,18 @@ kubectl kustomize overlays/aks \
   | sed "s|__ACR_LOGIN_SERVER__|${ACR_LOGIN_SERVER}|g; s|__IMAGE_TAG__|${IMAGE_TAG}|g" \
   | kubectl apply -f -
 
+# Unlike backend/frontend/ingestion (whose image tag changes every real
+# deploy, so kubectl apply's own spec diff triggers a rollout with no
+# help needed), Prometheus/Grafana's images never change here -- so a
+# ConfigMap-only change (scrape config, dashboard JSON) reports
+# "unchanged" and neither process ever re-reads its mounted ConfigMap on
+# its own. Found live on a real AKS redeploy: Prometheus kept scraping
+# with a stale target list, Grafana kept serving a stale dashboard, until
+# manually restarted. Costs a few seconds of scrape/dashboard
+# unavailability every run; silently stale is worse.
+kubectl rollout restart deployment/prometheus -n quantpulse
+kubectl rollout restart deployment/grafana -n quantpulse
+
 # The Finnhub API key is a real external credential, unlike the demo
 # secrets in k8s/secret.yaml -- never committed to git. Create it here
 # (once) from the FINNHUB_API_KEY env var, same as deploy-kind.sh.
