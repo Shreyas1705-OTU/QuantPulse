@@ -59,3 +59,22 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 3
+
+        # Sidecar, not a separate Deployment -- it talks to Redis over
+        # localhost, so it always scrapes the exact Redis instance this
+        # pod is running, with no separate Service/DNS to keep in sync
+        # and no risk of pointing at a stale pod during a Recreate
+        # rollout. Reports true Redis-process metrics (memory, ops/sec,
+        # connected clients) that app-level counters (cache.py,
+        # stream.py) can't see from the client side.
+        - name: redis-exporter
+
+          image: oliver006/redis_exporter:v1.62.0
+
+          env:
+            - name: REDIS_ADDR
+              value: "redis://localhost:6379"
+
+          ports:
+            - containerPort: 9121
+              name: http-metrics

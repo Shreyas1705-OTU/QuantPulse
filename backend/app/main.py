@@ -1,6 +1,8 @@
-from fastapi import FastAPI
+import time
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import make_asgi_app
+from prometheus_client import Counter, Histogram, make_asgi_app
 
 from app.core.config import settings
 from app.routers.auth import router as auth_router
@@ -32,6 +34,45 @@ app.add_middleware(
 # -----------------------------
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
+
+HTTP_REQUESTS_TOTAL = Counter(
+    "quantpulse_http_requests_total",
+    "Total HTTP requests handled by the backend",
+    ["method", "path", "status"],
+)
+HTTP_REQUEST_DURATION_SECONDS = Histogram(
+    "quantpulse_http_request_duration_seconds",
+    "HTTP request latency",
+    ["method", "path"],
+)
+
+
+@app.middleware("http")
+async def prometheus_request_metrics(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration = time.perf_counter() - start
+
+    # The matched route's own path template (e.g.
+    # "/api/v1/ticks/symbol/{symbol_id}"), not the raw request path --
+    # using the raw path would mean a distinct label value per symbol_id
+    # ever requested, growing this metric's cardinality without bound as
+    # more symbols/users/etc. get added. Falls back to the raw path for
+    # anything that didn't match a route (a plain 404).
+    route = request.scope.get("route")
+    path = route.path if route is not None else request.url.path
+
+    HTTP_REQUESTS_TOTAL.labels(
+        method=request.method,
+        path=path,
+        status=response.status_code,
+    ).inc()
+    HTTP_REQUEST_DURATION_SECONDS.labels(
+        method=request.method,
+        path=path,
+    ).observe(duration)
+
+    return response
 
 # -----------------------------
 # Symbol APIs
