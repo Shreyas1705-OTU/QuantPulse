@@ -29,18 +29,24 @@ NAMESPACE = "quantpulse"
 SNAPSHOT_DIR = Path("docs/logs")
 
 
-def pg_scalar(query: str) -> str:
-    """One psql query against postgres-0, returned as a bare string.
-    -t (tuples only) -A (unaligned) strips all of psql's formatting.
+def pg_scalar(query: str):
+    """One psql query against postgres-0, returned as a bare string, or
+    None if the query itself failed. -t (tuples only) -A (unaligned)
+    strips all of psql's formatting.
 
-    A failed query (bad SQL, postgres-0 unreachable) also produces empty
-    stdout, indistinguishable from a legitimately empty result unless
-    checked explicitly -- found live testing this script itself (a
-    missing FROM clause silently read back as "no ticks yet" instead of
-    a SQL error). Print the real error to stderr so a broken query is
-    visible, but still return '' rather than raising -- a resilience
-    check that itself crashes on Postgres being briefly unreachable
-    would defeat the point of it."""
+    Returning None (not '') on failure matters: a failed query and a
+    query that legitimately succeeded with an empty/zero result used to
+    both read back as the same falsy value, which is exactly what caused
+    a missing FROM clause to silently read back as "no ticks yet"
+    instead of a SQL error (found live testing this script the first
+    time), and separately caused cmd_diff to print a false "tick count
+    went DOWN" alarm whenever psql failed transiently mid-scenario --
+    ironically hitting hardest during Scenario 1 (kill Postgres), the
+    primary reason this script exists (found live via code review).
+    Prints the real error to stderr so a broken query stays visible, but
+    still returns None rather than raising -- a resilience check that
+    itself crashes on Postgres being briefly unreachable would defeat
+    the point of it."""
     result = subprocess.run(
         [
             "kubectl", "exec", "postgres-0", "-n", NAMESPACE, "--",
@@ -50,8 +56,17 @@ def pg_scalar(query: str) -> str:
     )
     if result.returncode != 0:
         print(f"WARNING: query failed ({query!r}): {result.stderr.strip()}", file=sys.stderr)
-        return ""
+        return None
     return result.stdout.strip()
+
+
+def _as_int(value):
+    """value is a pg_scalar() result already known to hold a plain
+    integer on success (every caller below uses count(*) or
+    COALESCE(..., 0), so a successful query is never an empty string) --
+    None propagates through as None ("couldn't determine"), never
+    silently coerced to 0."""
+    return int(value) if value is not None else None
 
 
 def capture_state() -> dict:
@@ -64,26 +79,35 @@ def capture_state() -> dict:
         ["kubectl", "get", "pods", "-n", NAMESPACE, "-o", "json"],
         capture_output=True, text=True,
     )
-    pods_data = json.loads(pods_raw.stdout)
 
-    pods = []
-    for p in pods_data["items"]:
-        statuses = p["status"].get("containerStatuses", [])
-        ready = all(c["ready"] for c in statuses) if statuses else False
-        restarts = sum(c["restartCount"] for c in statuses)
-        pods.append({
-            "name": p["metadata"]["name"],
-            "ready": ready,
-            "restarts": restarts,
-            "phase": p["status"].get("phase"),
-        })
+    # A transient kubectl/API-server hiccup here used to crash the whole
+    # diff with a JSONDecodeError instead of the intended pass/fail
+    # summary -- found live via code review, the same class of bug
+    # pg_scalar's own docstring above already exists to prevent, just
+    # not yet applied to this second subprocess call.
+    if pods_raw.returncode != 0:
+        print(f"WARNING: kubectl get pods failed: {pods_raw.stderr.strip()}", file=sys.stderr)
+        pods = None
+    else:
+        pods_data = json.loads(pods_raw.stdout)
+        pods = []
+        for p in pods_data["items"]:
+            statuses = p["status"].get("containerStatuses", [])
+            ready = all(c["ready"] for c in statuses) if statuses else False
+            restarts = sum(c["restartCount"] for c in statuses)
+            pods.append({
+                "name": p["metadata"]["name"],
+                "ready": ready,
+                "restarts": restarts,
+                "phase": p["status"].get("phase"),
+            })
 
     return {
         "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "tick_count": int(tick_count or 0),
-        "max_tick_id": int(max_tick_id or 0),
+        "tick_count": _as_int(tick_count),
+        "max_tick_id": _as_int(max_tick_id),
         "latest_traded_at": latest_traded_at,
-        "alert_count": int(alert_count or 0),
+        "alert_count": _as_int(alert_count),
         "pods": pods,
     }
 
@@ -114,22 +138,31 @@ def cmd_diff(name: str):
 
     print()
     print("=== Ticks ===")
-    delta = current["tick_count"] - before["tick_count"]
-    print(f"  before: {before['tick_count']} (max id {before['max_tick_id']}, latest {before['latest_traded_at'] or 'none'})")
-    print(f"  now:    {current['tick_count']} (max id {current['max_tick_id']}, latest {current['latest_traded_at'] or 'none'})")
-    if delta > 0:
-        print(f"  -> +{delta} ticks since snapshot -- ingestion is producing data again.")
-    elif delta == 0:
-        print("  -> NO new ticks since snapshot -- ingestion may still be down, or the market is genuinely quiet (check asset types/hours before assuming failure).")
+    if before["tick_count"] is None or current["tick_count"] is None:
+        print("  -> Could not determine tick count on one side (kubectl/psql issue) -- skipping this check rather than risk a false reading.")
     else:
-        print("  -> WARNING: tick count went DOWN. This should never happen (ticks are never deleted) -- investigate before trusting anything else here.")
+        delta = current["tick_count"] - before["tick_count"]
+        print(f"  before: {before['tick_count']} (max id {before['max_tick_id']}, latest {before['latest_traded_at'] or 'none'})")
+        print(f"  now:    {current['tick_count']} (max id {current['max_tick_id']}, latest {current['latest_traded_at'] or 'none'})")
+        if delta > 0:
+            print(f"  -> +{delta} ticks since snapshot -- ingestion is producing data again.")
+        elif delta == 0:
+            print("  -> NO new ticks since snapshot -- ingestion may still be down, or the market is genuinely quiet (check asset types/hours before assuming failure).")
+        else:
+            print("  -> WARNING: tick count went DOWN. This should never happen (ticks are never deleted) -- investigate before trusting anything else here.")
 
     print()
     print("=== Alerts ===")
-    print(f"  before: {before['alert_count']}  now: {current['alert_count']}")
+    before_alerts = before["alert_count"] if before["alert_count"] is not None else "unknown"
+    current_alerts = current["alert_count"] if current["alert_count"] is not None else "unknown"
+    print(f"  before: {before_alerts}  now: {current_alerts}")
 
     print()
     print("=== Pods ===")
+    if before["pods"] is None or current["pods"] is None:
+        print("  -> Could not list pods on one side (kubectl issue) -- skipping this check.")
+        return
+
     before_pods = {p["name"]: p for p in before["pods"]}
     current_pods = {p["name"]: p for p in current["pods"]}
 

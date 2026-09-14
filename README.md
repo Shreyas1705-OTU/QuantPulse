@@ -1,15 +1,17 @@
 # QuantPulse
 
-**QuantPulse** is a cloud-native IoT monitoring platform that simulates connected devices, stores telemetry data, exposes operational metrics, and visualizes system health through **Prometheus** and **Grafana**.
+**QuantPulse** is a real-time market monitoring platform: it ingests live trade data for equities, forex, and crypto, runs a rolling anomaly detector over it, layers AI-generated insight on top via Azure OpenAI, and pushes all of it live to a React dashboard — deployed identically to a local Kind cluster and a real Azure Kubernetes Service cluster.
 
 It is designed as a portfolio-ready full-stack project that demonstrates:
 
+- **Real-time data pipelines** — a live Finnhub WebSocket feed, Redis pub/sub, and a live-push WebSocket to the browser in place of polling
 - **Frontend development** with React
-- **Backend API development** with FastAPI
+- **Backend API development** with FastAPI, including WebSocket auth and live updates
 - **Database design and migrations** with PostgreSQL + Alembic
+- **AI integration** with Azure OpenAI for anomaly explanations and market summaries
 - **Containerization** with Docker
-- **Kubernetes orchestration** with Kind
-- **Observability** with Prometheus and Grafana
+- **Kubernetes orchestration**, deployed identically to local Kind and real Azure AKS
+- **Observability** with Prometheus, Grafana, and kube-state-metrics — built on real application metrics, not just process stats
 - **Deployment automation** with shell scripts
 
 ---
@@ -40,38 +42,39 @@ It is designed as a portfolio-ready full-stack project that demonstrates:
 
 ## Project Overview
 
-QuantPulse simulates an IoT monitoring workflow where devices continuously generate data such as temperature, humidity, and battery level. The application provides:
+QuantPulse streams live trades for a mix of equities (AAPL, TSLA, NVDA, MSFT, GOOGL, AMZN, META), forex (EUR/USD, USD/CAD), and crypto (BTC/USDT) from Finnhub's WebSocket API, writes every trade to Postgres, and runs a rolling z-score anomaly detector on price and volume in real time. Three separate Azure OpenAI-powered jobs turn that data into plain-English insight: per-alert explanations, a once-daily digest, and a continuously refreshing per-symbol summary. The application provides:
 
-- A **web dashboard** for viewing devices, readings, alerts, and analytics
-- A **FastAPI backend** for device and telemetry management
-- A **PostgreSQL database** for persistent storage
-- A **Prometheus metrics endpoint** for operational monitoring
-- A **Grafana dashboard** for backend health and runtime visualization
-- A **Kubernetes deployment** using Kind for local cloud-native testing
+- A **web dashboard** for live price trends, trade summaries, AI-generated insights, and alerts — updated over a WebSocket instead of polling
+- A **FastAPI backend** for the REST API, JWT auth, and the live-push WebSocket endpoint
+- A **PostgreSQL database** for ticks, alerts, symbols, and AI-generated summaries
+- **Redis** for pub/sub live push and cache-aside reads on hot endpoints
+- A **Prometheus metrics endpoint** exposing real application metrics (ticks ingested, alerts by severity, cache hit rate, active connections), not just process stats
+- A **Grafana dashboard** built on those real metrics, plus CronJob health via kube-state-metrics and Redis process health via redis_exporter
+- A **Kubernetes deployment** that runs identically on Kind (local) and Azure Kubernetes Service (real cloud)
 
-This project was refined through multiple **cold-start deployments**, with each failure used to improve automation, provisioning, and reliability.
+This project was refined through multiple **cold-start deployments** and **live failure-injection testing** (killing services, forcing outages, full cluster rebuilds), with each finding used to improve automation, provisioning, and reliability.
 
 ---
 
 ## Key Features
 
 ### Application Features
-- User login/authentication
-- Device list and status monitoring
-- Sensor readings dashboard
-- Alert generation and display
-- Analytics visualizations for telemetry trends
+- User login/authentication (JWT)
+- Live price trends and trade summaries across equities, forex, and crypto
+- Real-time anomaly alerts (rolling z-score on price and volume)
+- AI-generated insight: per-alert explanations, a daily digest, and a continuously refreshing per-symbol summary
+- Live dashboard updates over WebSocket, not polling
 - Seeded demo data for quick evaluation
 
 ### Platform / DevOps Features
-- Dockerized backend and frontend
-- Kubernetes manifests for all services
+- Dockerized backend, frontend, ingestion, and AI job images
+- Kubernetes manifests for every service, with a shared base + Kustomize overlays for Kind vs. AKS
 - Ingress-based routing for the main application
 - Automated database migrations with Alembic
 - Automated seed data initialization
-- Prometheus scraping of backend metrics
+- Prometheus scraping of real application metrics, not just process stats
 - Pre-provisioned Grafana data source and dashboard
-- One-command deployment support through shell scripts
+- One-command deployment support through shell scripts, identical for local Kind and real Azure AKS
 
 ---
 
@@ -253,9 +256,14 @@ QuantPulse now supports a structured deployment flow using scripts.
 
 ### Step 3 — Deploy QuantPulse
 
+Needs a real [Finnhub](https://finnhub.io/) API key (free tier is fine) exported first — the script hard-fails with a clear message if it's missing, rather than silently deploying an ingestion service that can never authenticate to Finnhub:
+
 ```bash
+export FINNHUB_API_KEY='your-key-here'
 ./scripts/deploy-kind.sh
 ```
+
+Azure OpenAI is optional for Kind too (same as the AKS flow below) — without `AZURE_OPENAI_ENDPOINT`/`AZURE_OPENAI_API_KEY`/`AZURE_OPENAI_DEPLOYMENT` exported, the deploy still succeeds and everything works except the two AI CronJobs that call it, which just fail at their next scheduled trigger until the secret exists.
 
 ### Step 4 — Start Prometheus and Grafana port forwarding
 
@@ -359,7 +367,7 @@ the cluster itself, to keep that a conscious, cost-aware step.
 QuantPulse includes an observability stack that helps validate backend health and runtime behavior.
 
 ### Prometheus
-Four scrape targets, every 5s: the backend and ingestion services' own `/metrics` endpoints, plus (new) `kube-state-metrics:8080` and `redis:9121` (the `redis_exporter` sidecar on the Redis pod).
+Four scrape targets, every 5s: the backend and ingestion services' own `/metrics` endpoints, plus (new) `kube-state-metrics:8080` and `redis-exporter:9121`. `redis_exporter` runs as its own Deployment rather than a sidecar on the Redis pod -- found live via code review that a sidecar ties Kubernetes' Pod-Ready gate (the AND of every container's readiness) to the Redis Service's own endpoints, so a failed exporter image pull would silently take live WS push and caching down too, not just the metrics endpoint.
 
 Example query used during validation:
 

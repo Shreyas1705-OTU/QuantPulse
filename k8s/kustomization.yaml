@@ -19,6 +19,8 @@ resources:
 
   - redis/deployment.yaml
   - redis/service.yaml
+  - redis/exporter-deployment.yaml
+  - redis/exporter-service.yaml
 
   - backend/deployment.yaml
   - backend/service.yaml
