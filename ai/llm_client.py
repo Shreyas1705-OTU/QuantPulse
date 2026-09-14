@@ -38,7 +38,11 @@ def _complete(client, system_prompt, user_prompt, max_tokens):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        max_tokens=max_tokens,
+        # `max_tokens` is the older chat-completions field name; current-gen
+        # models (deployed via Azure AI Foundry, not the legacy Azure OpenAI
+        # resource type) reject it outright with a 400 and require
+        # `max_completion_tokens` instead. Same value, new name.
+        max_completion_tokens=max_tokens,
         temperature=0.3,
     )
     return response.choices[0].message.content.strip()
