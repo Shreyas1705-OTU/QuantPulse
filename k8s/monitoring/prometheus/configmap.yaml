@@ -42,4 +42,4 @@ data:
 
         static_configs:
           - targets:
-              - redis:9121
+              - redis-exporter:9121

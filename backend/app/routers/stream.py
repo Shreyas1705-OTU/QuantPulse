@@ -106,15 +106,20 @@ async def stream_events(websocket: WebSocket):
         await websocket.close(code=4401, reason="Unauthorized")
         return
 
-    # Incremented only once actually authenticated -- a flood of rejected
-    # handshakes shouldn't move this gauge, since it's meant to answer
-    # "how many real live-push subscribers right now."
-    ACTIVE_WS_CONNECTIONS.inc()
-
     redis_conn = get_async_redis()
     pubsub = redis_conn.pubsub()
 
     try:
+        # Incremented only once actually authenticated AND inside this
+        # try -- found live via code review that incrementing before the
+        # try (as this used to) meant an exception from get_async_redis()
+        # or .pubsub() above would skip the finally's .dec() entirely,
+        # leaking the gauge upward by one every time that happened. A
+        # flood of rejected handshakes still doesn't move this gauge,
+        # since it's meant to answer "how many real live-push subscribers
+        # right now" -- it's incremented only once actually authenticated.
+        ACTIVE_WS_CONNECTIONS.inc()
+
         await pubsub.subscribe(*CHANNELS)
 
         last_reauth = time.monotonic()

@@ -95,7 +95,7 @@ data:
           "pluginVersion": "12.2.0",
           "targets": [{
             "editorMode": "code",
-            "expr": "100 * sum(kube_job_status_succeeded) / clamp_min(sum(kube_job_status_succeeded) + sum(kube_job_status_failed), 1)",
+            "expr": "100 * sum(kube_job_status_succeeded{namespace=\"quantpulse\", job_name=~\"ai-.*\"}) / clamp_min(sum(kube_job_status_succeeded{namespace=\"quantpulse\", job_name=~\"ai-.*\"}) + sum(kube_job_status_failed{namespace=\"quantpulse\", job_name=~\"ai-.*\"}), 1)",
             "legendFormat": "success rate",
             "range": true,
             "refId": "A"
@@ -254,8 +254,8 @@ data:
           "pluginVersion": "12.2.0",
           "targets": [{
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le, path) (rate(quantpulse_http_request_duration_seconds_bucket[5m])))",
-            "legendFormat": "p95 {{path}}",
+            "expr": "histogram_quantile(0.95, sum by (le, method, path) (rate(quantpulse_http_request_duration_seconds_bucket[5m])))",
+            "legendFormat": "p95 {{method}} {{path}}",
             "range": true,
             "refId": "A"
           }],
@@ -353,8 +353,8 @@ data:
           "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "pluginVersion": "12.2.0",
           "targets": [
-            {"editorMode": "code", "expr": "sum(kube_job_status_succeeded)", "legendFormat": "succeeded", "range": true, "refId": "A"},
-            {"editorMode": "code", "expr": "sum(kube_job_status_failed)", "legendFormat": "failed", "range": true, "refId": "B"}
+            {"editorMode": "code", "expr": "sum(kube_job_status_succeeded{namespace=\"quantpulse\", job_name=~\"ai-.*\"})", "legendFormat": "succeeded", "range": true, "refId": "A"},
+            {"editorMode": "code", "expr": "sum(kube_job_status_failed{namespace=\"quantpulse\", job_name=~\"ai-.*\"})", "legendFormat": "failed", "range": true, "refId": "B"}
           ],
           "title": "ai-explainer / ai-daily-summary / ai-symbol-summary Job Outcomes",
           "description": "Every CronJob-created Job across all three AI jobs. A failed spike that's immediately followed by a succeeded one on the same job is the known cold-start DNS race self-healing, not a real outage.",

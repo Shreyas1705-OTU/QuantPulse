@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: redis-exporter
+  namespace: quantpulse
+
+spec:
+  # A separate Deployment, not a sidecar in the redis Pod -- found live via
+  # code review: Kubernetes Pod-Ready is the AND of every container's
+  # Ready state, and a Service only routes to Ready Pods. A sidecar with
+  # no independent failure path (an ImagePullBackOff pulling from
+  # docker.io, unlike kube-state-metrics which uses registry.k8s.io, or
+  # any exporter crash) would take the WHOLE pod out of the redis
+  # Service -- including the healthy `redis` container on port 6379,
+  # breaking live WS push and cache-aside reads over a metrics sidecar's
+  # own unrelated failure. Connecting over the network to the redis
+  # Service instead of localhost costs nothing here: this exporter is
+  # stateless and doesn't need to be the exact same pod redis runs in.
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: redis-exporter
+
+  template:
+    metadata:
+      labels:
+        app: redis-exporter
+
+    spec:
+      containers:
+        - name: redis-exporter
+
+          image: oliver006/redis_exporter:v1.62.0
+
+          env:
+            - name: REDIS_ADDR
+              value: "redis://redis:6379"
+
+          ports:
+            - containerPort: 9121
+              name: http-metrics
+
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9121
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9121
+            initialDelaySeconds: 10
+            periodSeconds: 15

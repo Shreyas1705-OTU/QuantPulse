@@ -367,7 +367,7 @@ the cluster itself, to keep that a conscious, cost-aware step.
 QuantPulse includes an observability stack that helps validate backend health and runtime behavior.
 
 ### Prometheus
-Four scrape targets, every 5s: the backend and ingestion services' own `/metrics` endpoints, plus (new) `kube-state-metrics:8080` and `redis:9121` (the `redis_exporter` sidecar on the Redis pod).
+Four scrape targets, every 5s: the backend and ingestion services' own `/metrics` endpoints, plus (new) `kube-state-metrics:8080` and `redis-exporter:9121`. `redis_exporter` runs as its own Deployment rather than a sidecar on the Redis pod -- found live via code review that a sidecar ties Kubernetes' Pod-Ready gate (the AND of every container's readiness) to the Redis Service's own endpoints, so a failed exporter image pull would silently take live WS push and caching down too, not just the metrics endpoint.
 
 Example query used during validation:
 
