@@ -1,0 +1,21 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+
+metadata:
+  name: kube-state-metrics
+
+rules:
+  # Scoped to exactly what this project's Grafana dashboard needs --
+  # CronJob/Job success-failure visibility -- not the full generic
+  # resource list upstream kube-state-metrics' own manifests grant.
+  # Paired with --resources=cronjobs,jobs on the container itself (see
+  # deployment.yaml) so it doesn't even try to watch anything broader.
+  # namespaces is here because kube-state-metrics needs it internally
+  # regardless of which --resources are enabled.
+  - apiGroups: ["batch"]
+    resources: ["cronjobs", "jobs"]
+    verbs: ["list", "watch"]
+
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list", "watch"]

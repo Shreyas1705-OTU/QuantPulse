@@ -28,6 +28,7 @@ import json
 import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from prometheus_client import Gauge
 from redis import RedisError
 from starlette.concurrency import run_in_threadpool
 
@@ -39,6 +40,11 @@ router = APIRouter(tags=["Stream"])
 
 CHANNELS = ["ticks", "alerts"]
 AUTH_TIMEOUT_SECONDS = 10
+
+ACTIVE_WS_CONNECTIONS = Gauge(
+    "quantpulse_active_ws_connections",
+    "Currently open WebSocket connections on /api/v1/stream",
+)
 
 # How long to wait for a Redis message before sending a keepalive ping
 # instead. Below nginx's default proxy idle timeouts (and the ingress's)
@@ -100,6 +106,11 @@ async def stream_events(websocket: WebSocket):
         await websocket.close(code=4401, reason="Unauthorized")
         return
 
+    # Incremented only once actually authenticated -- a flood of rejected
+    # handshakes shouldn't move this gauge, since it's meant to answer
+    # "how many real live-push subscribers right now."
+    ACTIVE_WS_CONNECTIONS.inc()
+
     redis_conn = get_async_redis()
     pubsub = redis_conn.pubsub()
 
@@ -136,6 +147,12 @@ async def stream_events(websocket: WebSocket):
         pass
 
     finally:
+        # Runs on every exit path (normal disconnect, Redis error, or the
+        # early `return` on a failed reauth above) -- a `return` inside a
+        # `try` still runs its `finally`, so this is a single, reliable
+        # place to decrement regardless of how the connection ended.
+        ACTIVE_WS_CONNECTIONS.dec()
+
         # Each cleanup call guarded independently -- if Redis died
         # mid-stream (the except above already caught that from
         # get_message), unsubscribe/close below would otherwise re-raise

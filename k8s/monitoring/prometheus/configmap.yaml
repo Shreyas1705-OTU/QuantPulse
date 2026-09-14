@@ -27,3 +27,19 @@ data:
         static_configs:
           - targets:
               - ingestion:8001
+
+      - job_name: "kube-state-metrics"
+
+        metrics_path: /metrics
+
+        static_configs:
+          - targets:
+              - kube-state-metrics:8080
+
+      - job_name: "redis-exporter"
+
+        metrics_path: /metrics
+
+        static_configs:
+          - targets:
+              - redis:9121

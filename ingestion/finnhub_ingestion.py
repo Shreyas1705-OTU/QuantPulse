@@ -51,9 +51,14 @@ TICKS_INGESTED_TOTAL = Counter(
 # path that ever creates an Alert (no POST /alerts route), so that counter
 # could never fire. Real alerts are only ever created here, by the
 # anomaly detector, so this is the real place for the metric.
+#
+# Labeled by severity -- Phase 3's Grafana dashboard breaks this down as
+# HIGH vs MEDIUM, which an unlabeled total can't answer (see
+# detector.check_tick's severity values in anomaly_detector.py).
 ALERTS_TOTAL = Counter(
     "quantpulse_alerts_total",
     "Total alerts generated",
+    ["severity"],
 )
 
 engine = create_engine(DATABASE_URL)
@@ -242,7 +247,7 @@ def on_message(ws, message):
             ticker, trade["p"], trade["v"], traded_at
         ):
             insert_alert(symbol_id, message, severity)
-            ALERTS_TOTAL.inc()
+            ALERTS_TOTAL.labels(severity=severity).inc()
             print(f"  [{severity}] {ticker}: {message}")
 
             publish_event("alerts", {
