@@ -186,26 +186,27 @@ QuantPulse runs as a multi-service application inside a **Kind Kubernetes cluste
 
 ## System Screenshots
 
+All four captured live from a real cold-started Kind cluster, real Finnhub crypto/forex data streaming in (equities were closed at capture time, hence the "markets closed" banner and "No data yet" equity rows — that's the app correctly reflecting real NYSE market hours, not a bug).
+
 ### Login Page
 
-<img width="1920" height="1080" alt="QuantPulse_Login" src="https://github.com/user-attachments/assets/fefd3688-8bee-4f20-aec2-17ab79ec304c" />
-
+<img width="1600" alt="QuantPulse login page" src="docs/screenshots/login.png" />
 
 ### Main Application Dashboard
 
-<img width="1920" height="1020" alt="QuantPulse_Dashboard" src="https://github.com/user-attachments/assets/9b78f704-88e7-4edb-b26a-6b3fbac1f8c1" />
-
+<img width="1600" alt="QuantPulse dashboard with live crypto/forex ticks, alerts, and AI insight cards" src="docs/screenshots/dashboard.png" />
 
 ### Prometheus Query Validation
 
-The screenshot below shows the `up` query successfully returning the backend target.
+The screenshot below shows the `up` query returning all four real scrape targets — backend, ingestion, kube-state-metrics, and redis-exporter.
 
-<img width="1920" height="1080" alt="Prometheus" src="https://github.com/user-attachments/assets/e19ac7a8-ab30-4f3d-ac95-bc73379ac8f3" />
-
+<img width="1600" alt="Prometheus up query showing all four scrape targets healthy" src="docs/screenshots/prometheus.png" />
 
 ### Grafana Monitoring Dashboard
 
-<img width="1920" height="1506" alt="Grafana_Dashboard" src="https://github.com/user-attachments/assets/35475e4d-3926-459e-987f-faf79106ddad" />
+The full 15-panel QuantPulse-specific dashboard described in [Monitoring and Observability](#monitoring-and-observability), rendered with real data from the same live cluster.
+
+<img width="1600" alt="Full Grafana QuantPulse monitoring dashboard with all 15 panels" src="docs/screenshots/grafana.png" />
 
 
 ---
