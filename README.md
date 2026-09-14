@@ -91,7 +91,7 @@ QuantPulse runs as a multi-service application inside a **Kind Kubernetes cluste
 - The **user browser** accesses QuantPulse through **NGINX Ingress** at `http://localhost`
 - The **frontend service** serves the React application through an NGINX container
 - The **backend service** exposes a FastAPI REST API and a `/metrics` endpoint
-- **PostgreSQL** stores devices, readings, users, and alerts
+- **PostgreSQL** stores symbols, ticks, alerts, users, and AI-generated summaries
 - **Prometheus** scrapes backend metrics
 - **Grafana** queries Prometheus and displays observability dashboards
 
@@ -170,11 +170,12 @@ The screenshot below shows the `up` query successfully returning the backend tar
 ├── backend/                     # FastAPI backend
 │   ├── alembic/                 # Database migrations
 │   ├── app/
-│   │   ├── core/
-│   │   ├── database/
-│   │   ├── routers/
+│   │   ├── core/                # config, security (JWT), cache, redis client
+│   │   ├── database/            # models, session
+│   │   ├── routers/             # auth, symbols, ticks, alerts, summary, stream (WS)
 │   │   ├── schemas/
 │   │   └── services/
+│   ├── tests/                   # real-Postgres pytest suite
 │   ├── Dockerfile
 │   ├── alembic.ini
 │   └── requirements.txt
@@ -182,36 +183,41 @@ The screenshot below shows the `up` query successfully returning the backend tar
 │   ├── src/
 │   ├── public/
 │   ├── Dockerfile
-│   ├── nginx.conf
+│   ├── nginx.conf                # includes the WS-upgrade proxy config for live push
 │   └── package.json
-├── k8s/                         # Kubernetes manifests
-│   ├── backend/
-│   ├── frontend/
-│   ├── postgres/
+├── ingestion/                    # Finnhub WebSocket ingestion service (single replica)
+│   ├── finnhub_ingestion.py       # the real service
+│   ├── anomaly_detector.py        # rolling z-score anomaly detection
+│   ├── finnhub_peek.py            # ad-hoc manual inspection script
+│   └── tests/
+├── ai/                            # Three Azure OpenAI-powered CronJobs
+│   ├── explainer.py                # per-alert explanations
+│   ├── daily_summary.py            # once-daily digest
+│   ├── symbol_summary.py           # continuous per-symbol summary
+│   ├── llm_client.py
+│   ├── db.py
+│   └── tests/
+├── k8s/                          # Kubernetes manifests (base, shared by Kind and AKS)
+│   ├── backend/ frontend/ ingestion/ ai/ postgres/ redis/
 │   ├── monitoring/
-│   │   ├── prometheus/
-│   │   └── grafana/
+│   │   ├── prometheus/ grafana/
+│   │   └── kube-state-metrics/    # RBAC scoped to just cronjobs/jobs
 │   ├── ingress/
-│   ├── namespace.yaml
-│   ├── configmap.yaml
-│   └── secret.yaml
-├── monitoring/
-│   ├── prometheus/
-│   └── grafana/
+│   ├── namespace.yaml configmap.yaml secret.yaml
+│   └── kustomization.yaml
+├── overlays/aks/                 # Kustomize overlay: ACR image rewriting for AKS
 ├── dashboards/
 │   └── dashboard-export.json    # Exported Grafana dashboard JSON
 ├── scripts/
-│   ├── cleanup.sh
-│   ├── setup-kind.sh
-│   ├── deploy-kind.sh
-│   └── port-forward.sh
-├── ingestion/                    # Finnhub WebSocket ingestion service
-│   └── finnhub_peek.py
+│   ├── setup-kind.sh deploy-kind.sh cleanup.sh port-forward.sh
+│   ├── deploy-aks.sh             # same deploy, real Azure
+│   ├── resilience-check.sh / resilience_check.py   # Phase 4 snapshot/diff tool
+│   └── env-azure.example.sh
 ├── docs/
-│   ├── screenshots/
-│   └── diagrams/
+│   └── resilience-testing-runbook.md   # 5 live failure-injection scenarios
 ├── kind-config.yaml
 ├── docker-compose.yml
+├── pytest.ini
 └── README.md
 ```
 
@@ -508,19 +514,16 @@ The final deployment flow was successfully cold-started end-to-end, including:
 Yes — QuantPulse follows several cloud-native principles.
 
 ### Cloud-native characteristics in this project
-- **Containerized services** using Docker
-- **Service decomposition** into frontend, backend, database, Prometheus, and Grafana
-- **Kubernetes orchestration** with declarative manifests
-- **Infrastructure automation** with scripts
-- **Observability-first design** with Prometheus and Grafana
-- **Stateless application containers** where appropriate
+- **Containerized services** using Docker -- frontend, backend, ingestion, and the AI jobs each get their own image
+- **Service decomposition** into frontend, backend, ingestion, three AI CronJobs, Postgres, Redis, and the monitoring stack (Prometheus, Grafana, kube-state-metrics, redis_exporter)
+- **Kubernetes orchestration** with declarative manifests -- one shared base plus a Kustomize overlay for what actually differs between environments (image registry, pull policy), not two copies of the same YAML
+- **Infrastructure automation** with scripts -- the same `deploy-kind.sh`/`deploy-aks.sh` pattern deploys either target from one source of truth
+- **Observability-first design** with Prometheus, Grafana, kube-state-metrics, and redis_exporter, built on real application metrics (ticks ingested, alerts by severity, cache hit rate, request latency) rather than only generic process stats
+- **Stateless application containers** where appropriate -- ingestion is the deliberate, documented exception (single-replica by design, not an oversight)
 - **Configuration externalization** using ConfigMaps and Secrets
-- **Repeatable deployments** validated through cold starts
+- **Repeatable deployments** validated through cold starts, and **resilience validated through live failure injection** -- killing Postgres, killing ingestion mid-tick, a full `az aks stop`/`start` cycle, a complete cluster delete-and-recreate, and redeploying mid-CronJob-run (see [Resilience / Restart Testing](#resilience--restart-testing))
 
-While this project currently runs on **Kind locally**, the architecture is aligned with deployment to a real cloud-managed Kubernetes platform such as:
-- Azure Kubernetes Service (AKS)
-- Amazon EKS
-- Google Kubernetes Engine (GKE)
+This isn't a "Kind-only, cloud-aspirational" project -- it deploys to and has been live-tested on **real Azure Kubernetes Service**, with images built and pushed to a real Azure Container Registry, not just a local cluster. The same manifests and scripts work on Kind for free local development and on AKS for real cloud validation.
 
 ---
 
@@ -592,15 +595,16 @@ Or run both commands manually in separate terminals.
 
 ## Future Improvements
 
-- Deploy to **Azure AKS** or another managed Kubernetes platform
-- Add CI/CD using **GitHub Actions**
-- Add Helm charts for simplified deployment
-- Add JWT/session hardening and role-based access control
-- Persist Grafana state using volumes
-- Add more backend metrics and application traces
-- Add alert rules for Prometheus/Grafana
-- Add cloud storage and secrets management integration
-- Improve production readiness and scaling strategy
+Deploying to real Azure AKS and CI/CD via GitHub Actions are both done, not future items -- see [Deployment Scripts](#deployment-scripts) and the repo's own `.github/workflows/`. What's genuinely still open:
+
+- Add Helm charts as an alternative to the current Kustomize-based deployment
+- Enforce role-based access control -- `users.role` already exists in the schema (seeded as `admin`) but nothing currently checks it; every authenticated user can hit every endpoint today
+- Persist Grafana's own state (alert rules, user preferences created via its UI) with a volume -- the dashboard itself already survives a restart fine, since it's provisioned from a ConfigMap, not hand-edited
+- Add Prometheus/Grafana alert rules on top of the metrics that already exist (`kube-state-metrics` is already in place specifically to enable CronJob-failure alerting, just not wired to an actual alert yet)
+- Add distributed tracing to complement the request-rate/latency metrics that already exist
+- Azure Key Vault (or similar) for secrets instead of plain Kubernetes Secrets
+- Horizontal pod autoscaling for the backend
+- HTTPS -- deliberately parked, not forgotten: no public ingress/LoadBalancer is deployed at all right now (everything's reached via `kubectl port-forward`), so there's no public plain-HTTP traffic to protect yet. The hard rule for later: never add a public ingress without HTTPS in the same move.
 
 ---
 
@@ -683,11 +687,9 @@ flowchart TD
     C --> D[Create Database Schema]
     D --> E[Run Seed Module]
     E --> F[Create Default User]
-    E --> G[Create Sample Devices]
-    E --> H[Create Readings and Alerts]
+    E --> G[Seed Active Symbols]
     F --> I[QuantPulse Login Ready]
     G --> I
-    H --> I
 ```
 
 ### 4. Monitoring Flow Diagram
