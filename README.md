@@ -28,6 +28,7 @@ It is designed as a portfolio-ready full-stack project that demonstrates:
 - [Monitoring and Observability](#monitoring-and-observability)
 - [Live Updates & Caching (Redis)](#live-updates--caching-redis)
 - [Automated Test Suite](#automated-test-suite)
+- [Resilience / Restart Testing](#resilience--restart-testing)
 - [Cold-Start Validation and Testing](#cold-start-validation-and-testing)
 - [Why This Project Is Cloud-Native](#why-this-project-is-cloud-native)
 - [Troubleshooting](#troubleshooting)
@@ -431,6 +432,22 @@ pip install -r backend/requirements.txt -r ingestion/requirements.txt -r ai/requ
 TEST_DATABASE_URL="postgresql://quantpulse:quantpulse123@localhost:5433/quantpulse" \
   pytest backend/tests/ ingestion/tests/ ai/tests/ -v
 ```
+
+---
+
+## Resilience / Restart Testing
+
+Unlike the automated pytest suite above, this is deliberately user-driven, not automated -- the failures (killing Postgres, killing ingestion mid-tick, an `az aks stop`/`start` cycle, a full delete+recreate, redeploying mid-CronJob-run) are injected by hand against a real cluster, one at a time, with the recovery watched and judged live.
+
+`docs/resilience-testing-runbook.md` has the full walkthrough per scenario -- what to run, what should happen (grounded in this project's actual code, not a guess), and how to verify it. `scripts/resilience-check.sh` (a thin wrapper around `resilience_check.py`) supports it with two commands that never change cluster state, only observe it:
+
+```bash
+./scripts/resilience-check.sh snapshot pre   # before injecting a failure
+# ... inject the failure, wait for recovery ...
+./scripts/resilience-check.sh diff pre       # after
+```
+
+`diff` reports tick count growth since the snapshot, any pod that's still not `Ready`, and any restart count that increased -- enough to tell "recovered" from "still broken" without re-deriving it by hand each time.
 
 ---
 
