@@ -194,7 +194,7 @@ All four captured live from a real cold-started Kind cluster, real Finnhub crypt
 
 ### Main Application Dashboard
 
-<img width="1600" alt="QuantPulse dashboard with live crypto/forex ticks, alerts, and AI insight cards" src="docs/screenshots/dashboard.png" />
+<img width="1600" alt="QuantPulse dashboard with live crypto/forex ticks, alerts, and AI insight cards" src="docs/screenshots/dashboard.png?v=2" />
 
 ### Prometheus Query Validation
 
